@@ -33,17 +33,23 @@ Commands `l v e x t`; options `--noarcext -o+ -o- -dp{dir} -cls{dir} -p{pwd} -w{
 arguments for the list of commands and options.
 
 - `-p{pwd}` or `UNARC_PASSWORD`: the password of an encrypted archive.
-- `-cls{dir}` or `UNARC_CLS_DIR`: the folder with a setup's `CLS-*.dll` codecs. Each such stage runs through
-  `clshost.exe` under Wine (`UNARC_WINE`, `UNARC_CLSHOST`). `clshost.exe` is a small Windows program that loads
-  one CLS DLL and runs it from file to file; its source is `tools/clshost/clshost.c`, and `tools/clshost/build.sh`
-  builds it into `.build/clshost.exe` (needs mingw-w64). It is looked up as `UNARC_CLSHOST`, else beside `go-unarc`,
-  else in the CLS folder.
+- `-cls{dir}` or `UNARC_CLS_DIR`: the folder with a setup's `CLS-*.dll` codecs. Each such stage (but `msc`, see
+  below) runs through `clshost.exe` under Wine (`UNARC_WINE`, `UNARC_CLSHOST`). `clshost.exe` is a small Windows
+  program that loads one CLS DLL and runs it from file to file; its source is `tools/clshost/clshost.c`, and
+  `tools/clshost/build.sh` builds it into `.build/clshost.exe` (needs mingw-w64). It is looked up as
+  `UNARC_CLSHOST`, else beside `go-unarc`, else in the CLS folder.
 - `srep` stages always run the native `srep` binary: `UNARC_SREP`, else the `srep` beside `go-unarc`, else `PATH`.
 - Plugin stages spill to temp files under `TMPDIR` (or `-w`): allow disk space for the whole solid block.
 
-Methods: `storing tempfile lzma exe delta rep lzp dict ppmd tor grzip mm tta 4x4 dispack070`, `aes blowfish twofish
-serpent` (any key size, `/ctr` or `/cfb`), `arc.ini` external compressors and `pmm`, `srep` (native)
+Methods: `storing tempfile lzma exe delta rep lzp dict ppmd tor grzip mm tta 4x4 dispack070 msc`, `aes blowfish
+twofish serpent` (any key size, `/ctr` or `/cfb`), `arc.ini` external compressors and `pmm`, `srep` (native)
 and `CLS-*.dll` (under Wine).
+
+`msc` is the MSC plugin of ProFrager (`CLS-MSC.dll`), which stores the PCM WAV files inside game archives (BIGF)
+as TAK audio. It is decoded natively, with no DLL and no Wine, for `msc:tak=N:bmp=0:dxt=0` (N not 0), the
+parameters of the streams it was checked with; with other parameters (the image models `bmp` and `dxt`) the
+DLL is used if `-cls` has it. The format has no public description: package `internal/codec/msc` documents what
+was read from the DLL's output, and `internal/codec/tak` is a port of FFmpeg's TAK decoder.
 
 ## Differences from the C unarc
 
@@ -93,6 +99,12 @@ go test -run XXX -fuzz FuzzOpen ./internal/arc   # every decoder has a FuzzDecod
 - All `*.arc` files are Git LFS files (`.gitattributes`).
 - `internal/codectest`: what the codec tests share (running fagen, test writers, test text). Codec tests
   that need `.build/fagen` skip without it.
+- `internal/codec/tak`, `internal/codec/msc`: there is no TAK or MSC encoder to make fixtures with, so the tests
+  build streams by hand (`internal/codec/tak/taktest`, which shares no code with the decoder) and compare
+  with results worked out from the definitions. `TestOracle` of `msc` compares the decoding of a whole real
+  stream with the DLL's (`MSC_PACKED`: the input of the msc stage of an archive, which `UNARC_CLS_KEEP=1` keeps
+  for a build that still sends the stage to the DLL, as this one no longer does; `MSC_UNPACKED`: what
+  `clshost.exe` makes of it under Wine; skipped without them, the data is not free).
 
 ### Against the C unarc
 
@@ -120,7 +132,7 @@ go build -o .build/go-unarc ./cmd/unarc && C_UNARC=... go run ./scripts/benchcod
 ## License
 
 GPL-2.0-only, see [LICENSE](LICENSE). The port derives from GPL code (see the credits below), which rules out a
-more permissive license.
+more permissive license. The TAK decoder derives from FFmpeg's (LGPL 2.1 or later), used here under the GPL.
 
 ## Credits
 
@@ -131,3 +143,7 @@ domain), PPMd var.I (Dmitry Shkarin, public domain), Tornado (Bulat Ziganshin an
 and LibTomCrypt), the DisPack x86 filter, and FreeArc's own delta, rep, lzp, dict and mm filters. The comments
 cite the C sources they follow by file name (`Model.cpp`, `C_Tornado.cpp`, ...). The text in some test archives
 comes from those sources.
+
+Not from FreeArc: `internal/codec/tak` is a port of the TAK decoder of FFmpeg (`takdec.c`, `tak.c`, `takdsp.c`,
+Copyright (c) 2012 Paul B Mahol, LGPL 2.1 or later); TAK (Tom's lossless Audio Kompressor) is by Thomas Becker.
+`msc` follows the output of the MSC plugin of ProFrager (FragSoft), whose source is not public.

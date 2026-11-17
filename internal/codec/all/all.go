@@ -13,6 +13,7 @@ import (
 	_ "github.com/n0madic/go-unarc/internal/codec/lzma"
 	_ "github.com/n0madic/go-unarc/internal/codec/lzp"
 	_ "github.com/n0madic/go-unarc/internal/codec/mm"
+	_ "github.com/n0madic/go-unarc/internal/codec/msc"
 	_ "github.com/n0madic/go-unarc/internal/codec/plugin"
 	_ "github.com/n0madic/go-unarc/internal/codec/ppmd"
 	_ "github.com/n0madic/go-unarc/internal/codec/rep"
