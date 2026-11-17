@@ -1,0 +1,10 @@
+$ unarc x archives/storing.arc a.txt
+UnArc 0.60RC unpacker. Extracting archive: storing.arc
+Test archive comment
+Extracting a.txt (6 bytes)
+Extracting other/a.txt (24 bytes)
+
+
+--- stderr
+
+--- exit 0

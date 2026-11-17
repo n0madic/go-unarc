@@ -1,0 +1,4 @@
+/.build/
+/unarc
+/go-unarc
+.DS_Store

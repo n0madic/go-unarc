@@ -1,0 +1,11 @@
+$ unarc l archives/rep.arc
+UnArc 0.60RC unpacker. Listing archive: rep.arc
+Date/time                  Size Filename
+----------------------------------------
+2011-03-13 07:06:40      600000 r.bin
+----------------------------------------
+1 files, 600000 bytes, 598977 compressed
+
+--- stderr
+
+--- exit 0

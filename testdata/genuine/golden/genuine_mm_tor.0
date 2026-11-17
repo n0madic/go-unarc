@@ -1,0 +1,11 @@
+$ unarc l genuine/archives/genuine_mm_tor.arc
+UnArc 0.60RC unpacker. Listing archive: genuine_mm_tor.arc
+Date/time                  Size Filename
+----------------------------------------
+2014-03-27 09:08:24      132344 wav/s24_stereo.wav
+----------------------------------------
+1 files, 132344 bytes, 121684 compressed
+
+--- stderr
+
+--- exit 0

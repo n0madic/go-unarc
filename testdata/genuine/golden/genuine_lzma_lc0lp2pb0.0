@@ -1,0 +1,11 @@
+$ unarc l genuine/archives/genuine_lzma_lc0lp2pb0.arc
+UnArc 0.60RC unpacker. Listing archive: genuine_lzma_lc0lp2pb0.arc
+Date/time                  Size Filename
+----------------------------------------
+2014-03-15 22:14:06      524288 bin/table.bin
+----------------------------------------
+1 files, 524288 bytes, 168017 compressed
+
+--- stderr
+
+--- exit 0

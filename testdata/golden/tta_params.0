@@ -1,0 +1,11 @@
+$ unarc l archives/tta_params.arc
+UnArc 0.60RC unpacker. Listing archive: tta_params.arc
+Date/time                  Size Filename
+----------------------------------------
+2011-03-13 07:06:40      240044 snd/stereo16.wav
+----------------------------------------
+1 files, 240044 bytes, 137075 compressed
+
+--- stderr
+
+--- exit 0

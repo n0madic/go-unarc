@@ -1,0 +1,14 @@
+$ unarc l archives/unsafe_paths.arc
+UnArc 0.60RC unpacker. Listing archive: unsafe_paths.arc
+Date/time                  Size Filename
+----------------------------------------
+2011-03-13 07:06:40           5 ok.txt
+2011-03-13 07:06:40           5 ../evil.txt
+2011-03-13 07:06:40           4 /tmp/abs.txt
+2011-03-13 07:06:40           4 a/..\..\win.txt
+----------------------------------------
+4 files, 18 bytes, 18 compressed
+
+--- stderr
+
+--- exit 0

@@ -1,0 +1,12 @@
+$ unarc l archives/lzma_data1.arc
+UnArc 0.60RC unpacker. Listing archive: lzma_data1.arc
+Date/time                  Size Filename
+----------------------------------------
+2011-03-13 07:06:40      200000 src/a.cpp
+2011-03-13 07:06:40      400000 src/b.cpp
+----------------------------------------
+2 files, 600000 bytes, 117875 compressed
+
+--- stderr
+
+--- exit 0

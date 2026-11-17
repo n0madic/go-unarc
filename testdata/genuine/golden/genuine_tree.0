@@ -1,0 +1,90 @@
+$ unarc l genuine/archives/genuine_tree.arc
+UnArc 0.60RC unpacker. Listing archive: genuine_tree.arc
+Date/time                  Size Filename
+----------------------------------------
+2014-03-15 20:00:00       -dir- src/Compression/LZMA
+2014-03-15 20:00:00       -dir- src/Compression/LZMA/7zip
+2014-03-15 20:00:00       -dir- src/Compression/LZMA/Common
+2014-03-15 20:00:00       -dir- src/Compression/LZMA/Windows
+2014-03-15 20:00:00       -dir- src/Compression/LZMA/7zip/Common
+2014-03-15 20:00:00       -dir- src/Compression/LZMA/7zip/Compress
+2014-03-15 20:00:00       -dir- src/Compression/LZMA/7zip/Compress/Branch
+2014-03-15 20:00:00       -dir- src/Compression/LZMA/7zip/Compress/LZ
+2014-03-15 20:00:00       -dir- src/Compression/LZMA/7zip/Compress/LZMA
+2014-03-15 20:00:00       -dir- src/Compression/LZMA/7zip/Compress/RangeCoder
+2014-03-15 20:00:00       -dir- src/Compression/LZMA/7zip/Compress/LZ/BinTree
+2014-03-15 20:00:00       -dir- src/Compression/LZMA/7zip/Compress/LZ/HashChain
+2014-03-15 20:00:00       -dir- src/Compression/LZMA/7zip/Compress/LZ/MT
+2014-03-20 15:06:09        1482 src/Compression/LZMA/C_BCJ.h
+2014-03-20 17:20:15        2465 src/Compression/LZMA/C_LZMA.h
+2014-03-20 11:45:00        3735 src/Compression/LZMA/7zip/ICoder.h
+2014-03-20 12:52:03        1709 src/Compression/LZMA/7zip/IStream.h
+2014-03-18 10:34:48        1534 src/Compression/LZMA/7zip/Common/InBuffer.h
+2014-03-18 12:48:54        1234 src/Compression/LZMA/7zip/Common/OutBuffer.h
+2014-03-18 13:55:57         136 src/Compression/LZMA/7zip/Common/StdAfx.h
+2014-03-18 16:10:03        1373 src/Compression/LZMA/7zip/Compress/Branch/BranchCoder.h
+2014-03-18 17:17:06         955 src/Compression/LZMA/7zip/Compress/Branch/BranchTypes.h
+2014-03-18 19:31:12         237 src/Compression/LZMA/7zip/Compress/Branch/BranchX86.h
+2014-03-18 20:38:15          99 src/Compression/LZMA/7zip/Compress/Branch/StdAfx.h
+2014-03-18 22:52:21         290 src/Compression/LZMA/7zip/Compress/Branch/x86.h
+2014-03-19 12:16:57         992 src/Compression/LZMA/7zip/Compress/LZ/IMatchFinder.h
+2014-03-19 14:31:03        2513 src/Compression/LZMA/7zip/Compress/LZ/LZInWindow.h
+2014-03-19 16:45:09        1039 src/Compression/LZMA/7zip/Compress/LZ/LZOutWindow.h
+2014-03-19 21:13:21          60 src/Compression/LZMA/7zip/Compress/LZ/StdAfx.h
+2014-03-18 23:59:24        1614 src/Compression/LZMA/7zip/Compress/LZ/BinTree/BinTree.h
+2014-03-19 01:06:27         139 src/Compression/LZMA/7zip/Compress/LZ/BinTree/BinTree2.h
+2014-03-19 02:13:30         182 src/Compression/LZMA/7zip/Compress/LZ/BinTree/BinTree3.h
+2014-03-19 03:20:33         178 src/Compression/LZMA/7zip/Compress/LZ/BinTree/BinTree3Z.h
+2014-03-19 04:27:36         223 src/Compression/LZMA/7zip/Compress/LZ/BinTree/BinTree4.h
+2014-03-19 05:34:39       15468 src/Compression/LZMA/7zip/Compress/LZ/BinTree/BinTreeMain.h
+2014-03-19 06:41:42         120 src/Compression/LZMA/7zip/Compress/LZ/HashChain/HC2.h
+2014-03-19 07:48:45         162 src/Compression/LZMA/7zip/Compress/LZ/HashChain/HC3.h
+2014-03-19 08:55:48         204 src/Compression/LZMA/7zip/Compress/LZ/HashChain/HC4.h
+2014-03-19 10:02:51          89 src/Compression/LZMA/7zip/Compress/LZ/HashChain/HCMain.h
+2014-03-19 11:09:54         241 src/Compression/LZMA/7zip/Compress/LZ/HashChain/HT4.h
+2014-03-19 18:59:15        2042 src/Compression/LZMA/7zip/Compress/LZ/MT/MT.h
+2014-03-19 20:06:18         102 src/Compression/LZMA/7zip/Compress/LZ/MT/StdAfx.h
+2014-03-19 22:20:24        2260 src/Compression/LZMA/7zip/Compress/LZMA/LZMA.h
+2014-03-20 00:34:30        6754 src/Compression/LZMA/7zip/Compress/LZMA/LZMADecoder.h
+2014-03-20 02:48:36       10998 src/Compression/LZMA/7zip/Compress/LZMA/LZMAEncoder.h
+2014-03-20 03:55:39          99 src/Compression/LZMA/7zip/Compress/LZMA/StdAfx.h
+2014-03-20 05:02:42        4011 src/Compression/LZMA/7zip/Compress/RangeCoder/RangeCoder.h
+2014-03-20 07:16:48        2967 src/Compression/LZMA/7zip/Compress/RangeCoder/RangeCoderBit.h
+2014-03-20 08:23:51        4036 src/Compression/LZMA/7zip/Compress/RangeCoder/RangeCoderBitTree.h
+2014-03-20 09:30:54         953 src/Compression/LZMA/7zip/Compress/RangeCoder/RangeCoderOpt.h
+2014-03-20 10:37:57          59 src/Compression/LZMA/7zip/Compress/RangeCoder/StdAfx.h
+2014-03-20 19:34:21         779 src/Compression/LZMA/Common/CRC.h
+2014-03-20 20:41:24         441 src/Compression/LZMA/Common/Defs.h
+2014-03-20 21:48:27        5044 src/Compression/LZMA/Common/MyCom.h
+2014-03-20 22:55:30        1081 src/Compression/LZMA/Common/MyGuidDef.h
+2014-03-21 00:02:33         287 src/Compression/LZMA/Common/MyUnknown.h
+2014-03-21 01:09:36        4179 src/Compression/LZMA/Common/MyWindows.h
+2014-03-21 02:16:39         113 src/Compression/LZMA/Common/StdAfx.h
+2014-03-21 03:23:42       14540 src/Compression/LZMA/Common/String.h
+2014-03-21 04:30:45         952 src/Compression/LZMA/Common/Types.h
+2014-03-21 05:37:48         722 src/Compression/LZMA/Windows/Defs.h
+2014-03-21 06:44:51         567 src/Compression/LZMA/Windows/Handle.h
+2014-03-21 07:51:54         130 src/Compression/LZMA/Windows/StdAfx.h
+2014-03-21 10:06:00        8657 src/Compression/LZMA/Windows/Synchronization.h
+2014-03-21 11:13:03        3122 src/Compression/LZMA/Windows/Thread.h
+2014-03-18 18:24:09        2168 src/Compression/LZMA/7zip/Compress/Branch/BranchX86.c
+2014-03-20 13:59:06        2611 src/Compression/LZMA/C_BCJ.cpp
+2014-03-20 16:13:12       18130 src/Compression/LZMA/C_LZMA.cpp
+2014-03-18 09:27:45        1523 src/Compression/LZMA/7zip/Common/InBuffer.cpp
+2014-03-18 11:41:51        2423 src/Compression/LZMA/7zip/Common/OutBuffer.cpp
+2014-03-18 15:03:00         334 src/Compression/LZMA/7zip/Compress/Branch/BranchCoder.cpp
+2014-03-18 21:45:18         321 src/Compression/LZMA/7zip/Compress/Branch/x86.cpp
+2014-03-19 13:24:00        2524 src/Compression/LZMA/7zip/Compress/LZ/LZInWindow.cpp
+2014-03-19 15:38:06         237 src/Compression/LZMA/7zip/Compress/LZ/LZOutWindow.cpp
+2014-03-19 17:52:12        7107 src/Compression/LZMA/7zip/Compress/LZ/MT/MT.cpp
+2014-03-19 23:27:27        8609 src/Compression/LZMA/7zip/Compress/LZMA/LZMADecoder.cpp
+2014-03-20 01:41:33       44230 src/Compression/LZMA/7zip/Compress/LZMA/LZMAEncoder.cpp
+2014-03-20 06:09:45        2063 src/Compression/LZMA/7zip/Compress/RangeCoder/RangeCoderBit.cpp
+2014-03-20 18:27:18        1045 src/Compression/LZMA/Common/CRC.cpp
+2014-03-21 08:58:57        4572 src/Compression/LZMA/Windows/Synchronization.cpp
+----------------------------------------
+80 files, 211265 bytes, 37802 compressed
+
+--- stderr
+
+--- exit 0

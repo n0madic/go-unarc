@@ -1,0 +1,11 @@
+$ unarc l genuine/archives/genuine_mm_u8.arc
+UnArc 0.60RC unpacker. Listing archive: genuine_mm_u8.arc
+Date/time                  Size Filename
+----------------------------------------
+2014-03-27 10:15:27       11069 wav/u8_mono.wav
+----------------------------------------
+1 files, 11069 bytes, 3043 compressed
+
+--- stderr
+
+--- exit 0

@@ -1,0 +1,19 @@
+$ unarc l archives/storing.arc
+UnArc 0.60RC unpacker. Listing archive: storing.arc
+Test archive comment
+Date/time                  Size Filename
+----------------------------------------
+2011-03-13 07:06:40       -dir- docs
+2011-03-13 07:06:40        3000 docs/readme.txt
+2011-03-13 07:06:40           0 empty.txt
+2011-03-13 07:06:40       70000 docs/sub/data.bin
+2011-03-13 07:06:40       -dir- docs/emptydir
+2011-03-13 07:06:40           6 a.txt
+2011-03-13 07:06:40           7 b.txt
+2011-03-13 07:06:40          24 other/a.txt
+----------------------------------------
+8 files, 73037 bytes, 73037 compressed
+
+--- stderr
+
+--- exit 0

@@ -1,0 +1,19 @@
+$ unarc l genuine/archives/genuine_nodates.arc
+UnArc 0.60RC unpacker. Listing archive: genuine_nodates.arc
+Date/time                  Size Filename
+----------------------------------------
+1970-01-01 00:00:00       -dir- misc/sub
+1970-01-01 00:00:00        3072 misc/sub/a.txt
+1970-01-01 00:00:00        5120 misc/sub/b.txt
+1970-01-01 00:00:00        2048 misc/sub/d.txt
+1970-01-01 00:00:00        7168 misc/sub/f.txt
+1970-01-01 00:00:00        1024 misc/sub/g.txt
+1970-01-01 00:00:00        4096 misc/sub/h.txt
+1970-01-01 00:00:00        6144 misc/sub/c.bin
+1970-01-01 00:00:00        1024 misc/sub/e.bin
+----------------------------------------
+9 files, 29696 bytes, 10904 compressed
+
+--- stderr
+
+--- exit 0

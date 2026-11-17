@@ -1,0 +1,27 @@
+# Streams for TestStreams. Columns: file, order, memory in bytes, restoration method (0 restart, 1 cut off,
+# 2 freeze), size and SHA-256 of the decoded data, minimum number of model events the stream must cause
+# (restarts, cut-offs, steps of the frozen model), source of the stream.
+#
+# Sources (none of them is FreeArc's 64-bit build, whose model diverges from real archives once memory fills):
+#   7z     p7zip 17.05 "7z a -tzip -mm=PPMd -mmem=1m -mo=<order> -mx=<5: r0 | 7: r1> z.zip mix.bin" (7-Zip's Ppmd8,
+#          32-bit layout, ZIP method 98); the 2-byte header (order-1, memory MB-1, restoration method) is removed
+#   ppmd8  the Ppmd8 sources of 7-Zip (github.com/ip7z/7zip main, C/Ppmd8*.c dated 2023) built with PPMD8_FREEZE_SUPPORT and with the
+#          "rev.2" fix in Refresh() (scale |= SummFreq >= 1<<15) removed, which makes it PPMd var.I rev.1 as FreeArc's
+#          code is; driven by a 30-line encoder that writes the end marker and flushes like the ZIP encoder
+#   fagen  FreeArc's own encoder, valid only while the model memory does not fill up (the tests check it)
+#
+# Inputs: mix.bin (400000 bytes) = 160000 bytes of C/C++ source text, 30000 random bytes, 20000 zeros, 100000 bytes of
+# other source text, 40000 bytes of a repeated 23-byte record, 50000 random bytes over an alphabet of 4 letters.
+# small30k.txt = the first 30000 bytes of a concatenation of C++ sources. t28k.txt = 28000 bytes of the same text.
+# Only the SHA-256 of the inputs is kept here.
+mix_r0_o6.ppmd 6 1048576 0 400000 b26eba03a7598512e5e185324daf67df45180901afa8071fce098dcc8cdbb9c5 2 0 0 7z
+mix_r1_o8.ppmd 8 1048576 1 400000 b26eba03a7598512e5e185324daf67df45180901afa8071fce098dcc8cdbb9c5 0 5 0 7z
+mix_r0_o16.ppmd 16 1048576 0 400000 b26eba03a7598512e5e185324daf67df45180901afa8071fce098dcc8cdbb9c5 2 0 0 7z
+mix_r1_o16.ppmd 16 1048576 1 400000 b26eba03a7598512e5e185324daf67df45180901afa8071fce098dcc8cdbb9c5 0 5 0 7z
+mix_r2_o5.ppmd 5 262144 2 400000 b26eba03a7598512e5e185324daf67df45180901afa8071fce098dcc8cdbb9c5 0 0 1 ppmd8
+tiny_r0_o4.ppmd 4 2048 0 30000 ee1f75d79defffd93371770a52d1fbc3274356f2fe95feb89591fc39d9ca5986 100 0 0 ppmd8
+tiny_r1_o4.ppmd 4 3000 1 30000 ee1f75d79defffd93371770a52d1fbc3274356f2fe95feb89591fc39d9ca5986 0 100 0 ppmd8
+tiny_r2_o4.ppmd 4 2048 2 30000 ee1f75d79defffd93371770a52d1fbc3274356f2fe95feb89591fc39d9ca5986 0 0 1 ppmd8
+fagen_o8.ppmd 8 16777216 0 28000 3b41c8250fce88fce60ed4847c0c713e7571739fd0baf2850831cbe5d1855596 0 0 0 fagen
+fagen_o2.ppmd 2 1048576 0 28000 3b41c8250fce88fce60ed4847c0c713e7571739fd0baf2850831cbe5d1855596 0 0 0 fagen
+fagen_o128.ppmd 128 67108864 0 28000 3b41c8250fce88fce60ed4847c0c713e7571739fd0baf2850831cbe5d1855596 0 0 0 fagen

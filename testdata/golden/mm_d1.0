@@ -1,0 +1,11 @@
+$ unarc l archives/mm_d1.arc
+UnArc 0.60RC unpacker. Listing archive: mm_d1.arc
+Date/time                  Size Filename
+----------------------------------------
+2011-03-13 07:06:40       30044 snd/mono8.wav
+----------------------------------------
+1 files, 30044 bytes, 30051 compressed
+
+--- stderr
+
+--- exit 0

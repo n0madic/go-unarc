@@ -1,0 +1,12 @@
+$ unarc l archives/lzma_smalldict.arc
+UnArc 0.60RC unpacker. Listing archive: lzma_smalldict.arc
+Date/time                  Size Filename
+----------------------------------------
+2011-03-13 07:06:40      166666 src/a.cpp
+2011-03-13 07:06:40      333334 src/b.cpp
+----------------------------------------
+2 files, 500000 bytes, 113568 compressed
+
+--- stderr
+
+--- exit 0

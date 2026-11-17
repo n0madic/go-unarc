@@ -1,0 +1,12 @@
+$ unarc l archives/ppmd_o16.arc
+UnArc 0.60RC unpacker. Listing archive: ppmd_o16.arc
+Date/time                  Size Filename
+----------------------------------------
+2011-03-13 07:06:40      100000 src/a.cpp
+2011-03-13 07:06:40      200000 src/b.cpp
+----------------------------------------
+2 files, 300000 bytes, 57337 compressed
+
+--- stderr
+
+--- exit 0

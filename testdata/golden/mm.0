@@ -1,0 +1,11 @@
+$ unarc l archives/mm.arc
+UnArc 0.60RC unpacker. Listing archive: mm.arc
+Date/time                  Size Filename
+----------------------------------------
+2011-03-13 07:06:40       80044 snd/small16.wav
+----------------------------------------
+1 files, 80044 bytes, 80052 compressed
+
+--- stderr
+
+--- exit 0

@@ -1,0 +1,12 @@
+$ UNARC_PASSWORD=test-password unarc l archives/serpent.arc
+UnArc 0.60RC unpacker. Listing archive: serpent.arc
+Date/time                  Size Filename
+----------------------------------------
+2011-03-13 07:06:40      100000 secret/a.txt
+2011-03-13 07:06:40       20000 secret/b.bin
+----------------------------------------
+2 files, 120000 bytes, 45385 compressed
+
+--- stderr
+
+--- exit 0

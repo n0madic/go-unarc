@@ -1,0 +1,13 @@
+$ unarc l archives/tor5.arc
+UnArc 0.60RC unpacker. Listing archive: tor5.arc
+Date/time                  Size Filename
+----------------------------------------
+2011-03-13 07:06:40      200000 text.txt
+2011-03-13 07:06:40      200000 bin.dat
+2011-03-13 07:06:40      100000 x86.exe
+----------------------------------------
+3 files, 500000 bytes, 141894 compressed
+
+--- stderr
+
+--- exit 0

@@ -1,0 +1,11 @@
+$ unarc l genuine/archives/genuine_tta_s16_mono.arc
+UnArc 0.60RC unpacker. Listing archive: genuine_tta_s16_mono.arc
+Date/time                  Size Filename
+----------------------------------------
+2014-03-27 06:54:18       44144 wav/s16_mono.wav
+----------------------------------------
+1 files, 44144 bytes, 25329 compressed
+
+--- stderr
+
+--- exit 0

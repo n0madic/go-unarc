@@ -1,0 +1,12 @@
+$ unarc l archives/control_lzma.arc
+UnArc 0.60RC unpacker. Listing archive: control_lzma.arc
+compressed headers
+Date/time                  Size Filename
+----------------------------------------
+2011-03-13 07:06:40       50000 a.txt
+----------------------------------------
+1 files, 50000 bytes, 13695 compressed
+
+--- stderr
+
+--- exit 0

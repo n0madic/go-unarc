@@ -1,0 +1,15 @@
+$ unarc l archives/multi.arc
+UnArc 0.60RC unpacker. Listing archive: multi.arc
+Date/time                  Size Filename
+----------------------------------------
+2011-03-13 07:06:40      100000 one/a.cpp
+2011-03-13 07:06:40       50000 one/b.cpp
+2011-03-13 07:06:40      120000 two/c.cpp
+2011-03-13 07:06:40           7 three/d.txt
+2011-03-13 07:06:40      150000 four/e.bin
+----------------------------------------
+5 files, 420007 bytes, 74180 compressed
+
+--- stderr
+
+--- exit 0

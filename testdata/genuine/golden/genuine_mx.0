@@ -1,0 +1,26 @@
+$ unarc l genuine/archives/genuine_mx.arc
+UnArc 0.60RC unpacker. Listing archive: genuine_mx.arc
+Date/time                  Size Filename
+----------------------------------------
+2014-03-15 20:00:00       -dir- mix
+2014-03-15 20:00:00       -dir- mix/bin
+2014-03-15 20:00:00       -dir- mix/data
+2014-03-15 20:00:00       -dir- mix/docs
+2014-03-15 20:00:00       -dir- mix/emptydir
+2014-03-15 20:00:00       -dir- mix/media
+2014-03-15 20:00:00       -dir- mix/src
+2014-03-15 20:00:00       -dir- mix/docs/notes
+2014-03-16 19:28:03      163840 mix/docs/readme.txt
+2014-03-16 18:21:00       49152 mix/docs/notes/notes.txt
+2014-03-16 22:49:12       65536 mix/src/main.cpp
+2014-03-16 20:35:06           0 mix/empty.txt
+2014-03-16 14:59:51       98304 mix/bin/prog.exe
+2014-03-16 16:06:54        8192 mix/data/random.bin
+2014-03-16 17:13:57      196608 mix/data/table.bin
+2014-03-16 21:42:09       32044 mix/media/tone.wav
+----------------------------------------
+16 files, 613676 bytes, 134281 compressed
+
+--- stderr
+
+--- exit 0

@@ -1,0 +1,12 @@
+$ unarc l archives/storing_sfx.arc
+UnArc 0.60RC unpacker. Listing archive: storing_sfx.arc
+old style comment
+Date/time                  Size Filename
+----------------------------------------
+2011-03-13 07:06:40           4 f.txt
+----------------------------------------
+1 files, 4 bytes, 4 compressed
+
+--- stderr
+
+--- exit 0

@@ -1,0 +1,12 @@
+$ unarc l genuine/archives/genuine_tor_1.arc
+UnArc 0.60RC unpacker. Listing archive: genuine_tor_1.arc
+Date/time                  Size Filename
+----------------------------------------
+2014-03-15 23:21:09      262144 bin/x86.bin
+2014-03-27 05:47:15      262144 text/small.txt
+----------------------------------------
+2 files, 524288 bytes, 404677 compressed
+
+--- stderr
+
+--- exit 0

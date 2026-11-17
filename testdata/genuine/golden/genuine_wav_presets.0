@@ -1,0 +1,15 @@
+$ unarc l genuine/archives/genuine_wav_presets.arc
+UnArc 0.60RC unpacker. Listing archive: genuine_wav_presets.arc
+Date/time                  Size Filename
+----------------------------------------
+2014-03-15 20:00:00       -dir- wav
+2014-03-27 06:54:18       44144 wav/s16_mono.wav
+2014-03-27 08:01:21       88244 wav/s16_stereo.wav
+2014-03-27 09:08:24      132344 wav/s24_stereo.wav
+2014-03-27 10:15:27       11069 wav/u8_mono.wav
+----------------------------------------
+5 files, 275801 bytes, 173952 compressed
+
+--- stderr
+
+--- exit 0

@@ -1,0 +1,13 @@
+$ unarc l archives/bad_crc.arc
+UnArc 0.60RC unpacker. Listing archive: bad_crc.arc
+Date/time                  Size Filename
+----------------------------------------
+2011-03-13 07:06:40           5 a.txt
+2011-03-13 07:06:40          10 b.txt
+2011-03-13 07:06:40           6 c.txt
+----------------------------------------
+3 files, 21 bytes, 21 compressed
+
+--- stderr
+
+--- exit 0

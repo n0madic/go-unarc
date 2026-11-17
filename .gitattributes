@@ -1,0 +1,8 @@
+*.arc filter=lfs diff=lfs merge=lfs -text
+
+# Fixtures and recorded runs are compared byte for byte: never convert their line endings.
+testdata/** -text
+**/testdata/** -text
+
+# The scripts run in Docker and on Unix.
+*.sh text eol=lf

@@ -1,0 +1,11 @@
+$ unarc l genuine/archives/genuine_grzip_m2.arc
+UnArc 0.60RC unpacker. Listing archive: genuine_grzip_m2.arc
+Date/time                  Size Filename
+----------------------------------------
+2014-03-27 05:47:15      262144 text/small.txt
+----------------------------------------
+1 files, 262144 bytes, 56563 compressed
+
+--- stderr
+
+--- exit 0

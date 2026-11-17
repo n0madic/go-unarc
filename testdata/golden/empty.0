@@ -1,0 +1,10 @@
+$ unarc l archives/empty.arc
+UnArc 0.60RC unpacker. Listing archive: empty.arc
+Date/time                  Size Filename
+----------------------------------------
+----------------------------------------
+0 files, 0 bytes, 0 compressed
+
+--- stderr
+
+--- exit 0

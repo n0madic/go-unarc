@@ -1,0 +1,12 @@
+$ unarc l archives/short_data.arc
+UnArc 0.60RC unpacker. Listing archive: short_data.arc
+Date/time                  Size Filename
+----------------------------------------
+2011-03-13 07:06:40           4 a.txt
+2011-03-13 07:06:40           8 b.txt
+----------------------------------------
+2 files, 12 bytes, 7 compressed
+
+--- stderr
+
+--- exit 0

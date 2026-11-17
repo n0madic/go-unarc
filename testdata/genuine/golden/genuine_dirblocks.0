@@ -1,0 +1,24 @@
+$ unarc l genuine/archives/genuine_dirblocks.arc
+UnArc 0.60RC unpacker. Listing archive: genuine_dirblocks.arc
+Date/time                  Size Filename
+----------------------------------------
+2014-03-15 20:00:00       -dir- misc
+2014-03-15 20:00:00       -dir- misc/emptydir
+2014-03-15 20:00:00       -dir- misc/sub
+2014-03-16 02:42:18          65 misc/comment.txt
+2014-03-16 06:03:27        3072 misc/sub/a.txt
+2014-03-16 07:10:30        5120 misc/sub/b.txt
+2014-03-16 03:49:21           0 misc/empty.txt
+2014-03-16 04:56:24          25 misc/hello.txt
+2014-03-16 09:24:36        2048 misc/sub/d.txt
+2014-03-16 11:38:42        7168 misc/sub/f.txt
+2014-03-16 12:45:45        1024 misc/sub/g.txt
+2014-03-16 13:52:48        4096 misc/sub/h.txt
+2014-03-16 08:17:33        6144 misc/sub/c.bin
+2014-03-16 10:31:39        1024 misc/sub/e.bin
+----------------------------------------
+14 files, 29786 bytes, 11802 compressed
+
+--- stderr
+
+--- exit 0
