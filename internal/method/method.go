@@ -70,7 +70,7 @@ type Env struct {
 	CLSDirSet  bool   // UNARC_CLS_DIR given at all (even empty), which silences the -cls hint
 	Wine       string // UNARC_WINE, default "wine"
 	CLSHost    string // UNARC_CLSHOST
-	Srep       string // UNARC_SREP
+	Srep       string // UNARC_SREP: external decoder in place of the built-in one
 	CLSKeep    bool   // UNARC_CLS_KEEP: keep a plugin stage's input
 	Debug      bool   // UNARC_DEBUG
 	ShowBlocks bool   // UNARC_BLOCKS: print each solid block's compressor, position and size

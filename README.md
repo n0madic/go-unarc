@@ -38,11 +38,16 @@ arguments for the list of commands and options.
   program that loads one CLS DLL and runs it from file to file; its source is `tools/clshost/clshost.c`, and
   `tools/clshost/build.sh` builds it into `.build/clshost.exe` (needs mingw-w64). It is looked up as
   `UNARC_CLSHOST`, else beside `go-unarc`, else in the CLS folder.
-- `srep` stages always run the native `srep` binary: `UNARC_SREP`, else the `srep` beside `go-unarc`, else `PATH`.
+- `srep` is built in (SREP formats v1–v4, with MD5, SHA-1, SHA-512, VHASH and SipHash block checksums). Set
+  `UNARC_SREP` to a binary path to use the external decoder instead. As with other built-in methods, an
+  explicit `srep` definition in `arc.ini` takes precedence.
+- Built-in `srep` uses `-w` (or `TMPDIR`) for older output needed by long-distance matches. Index-LZ (v4)
+  also saves its input there if it is not seekable. The built-in decoder accepts blocks up to 8 MiB and
+  up to 1,048,576 pending matches; use `UNARC_SREP` if you need a different decoder for an archive.
 - Plugin stages spill to temp files under `TMPDIR` (or `-w`): allow disk space for the whole solid block.
 
 Methods: `storing tempfile lzma exe delta rep lzp dict ppmd tor grzip mm tta 4x4 dispack070 msc`, `aes blowfish
-twofish serpent` (any key size, `/ctr` or `/cfb`), `arc.ini` external compressors and `pmm`, `srep` (native)
+twofish serpent` (any key size, `/ctr` or `/cfb`), `arc.ini` external compressors and `pmm`, `srep`
 and `CLS-*.dll` (under Wine).
 
 `msc` is the MSC plugin of ProFrager (`CLS-MSC.dll`), which stores the PCM WAV files inside game archives (BIGF)
@@ -99,6 +104,8 @@ go test -run XXX -fuzz FuzzOpen ./internal/arc   # every decoder has a FuzzDecod
 - All `*.arc` files are Git LFS files (`.gitattributes`).
 - `internal/codectest`: what the codec tests share (running fagen, test writers, test text). Codec tests
   that need `.build/fagen` skip without it.
+- `testdata/srep`: reference streams made by SREP 3.93a. The codec and archive tests do not need `srep`;
+  they exercise matches across blocks, block checksums, and `t` / `x` on an `srep+lzma` chain.
 - `internal/codec/tak`, `internal/codec/msc`: there is no TAK or MSC encoder to make fixtures with, so the tests
   build streams by hand (`internal/codec/tak/taktest`, which shares no code with the decoder) and compare
   with results worked out from the definitions. `TestOracle` of `msc` compares the decoding of a whole real
@@ -147,3 +154,6 @@ comes from those sources.
 Not from FreeArc: `internal/codec/tak` is a port of the TAK decoder of FFmpeg (`takdec.c`, `tak.c`, `takdsp.c`,
 Copyright (c) 2012 Paul B Mahol, LGPL 2.1 or later); TAK (Tom's lossless Audio Kompressor) is by Thomas Becker.
 `msc` follows the output of the MSC plugin of ProFrager (FragSoft), whose source is not public.
+`srep` follows the SREP format by Bulat Ziganshin; block verification uses Ted Krovetz and Wei Dai's VHASH
+([draft-krovetz-vmac-01](https://datatracker.ietf.org/doc/html/draft-krovetz-vmac-01), public-domain reference
+implementation) and Aumasson and Bernstein's SipHash-2-4.

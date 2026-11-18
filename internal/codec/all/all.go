@@ -17,6 +17,7 @@ import (
 	_ "github.com/n0madic/go-unarc/internal/codec/plugin"
 	_ "github.com/n0madic/go-unarc/internal/codec/ppmd"
 	_ "github.com/n0madic/go-unarc/internal/codec/rep"
+	_ "github.com/n0madic/go-unarc/internal/codec/srep"
 	_ "github.com/n0madic/go-unarc/internal/codec/storing"
 	_ "github.com/n0madic/go-unarc/internal/codec/tornado"
 	_ "github.com/n0madic/go-unarc/internal/codec/tta"

@@ -8,6 +8,7 @@ import (
 
 	_ "github.com/n0madic/go-unarc/internal/codec/lzma"
 	_ "github.com/n0madic/go-unarc/internal/codec/plugin"
+	_ "github.com/n0madic/go-unarc/internal/codec/srep"
 	"github.com/n0madic/go-unarc/internal/method"
 )
 
@@ -27,5 +28,15 @@ func TestBuiltinFirst(t *testing.T) {
 	}
 	if c, ok := method.Lookup("other", env); !ok || fmt.Sprintf("%T", c) != "*plugin.codec" {
 		t.Errorf("CLS-other.dll resolved to %T", c)
+	}
+}
+
+func TestSrepOverride(t *testing.T) {
+	t.Parallel()
+	for _, path := range []string{"", "/opt/srep"} {
+		c, ok := method.Lookup("srep:m3f", &method.Env{Srep: path})
+		if !ok || (fmt.Sprintf("%T", c) == "*plugin.codec") != (path != "") {
+			t.Errorf("UNARC_SREP=%q: resolved to %T", path, c)
+		}
 	}
 }

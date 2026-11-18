@@ -21,7 +21,7 @@ const helpText = "\nUsage: unarc command [options] archive[.arc] [filenames...]\
 	"  --noarcext  - don't add default extension to archive name\n" +
 	"  -p{Pwd}     - password of an encrypted archive (or env UNARC_PASSWORD)\n" +
 	"  -cls{Path}  - folder with the setup's CLS-*.dll, run through clshost.exe under Wine\n" +
-	"                (or env UNARC_CLS_DIR; srep runs natively: srep beside unarc, or env UNARC_SREP)\n" +
+	"                (or env UNARC_CLS_DIR; set UNARC_SREP to override the built-in srep decoder)\n" +
 	"  --          - no more options\n"
 
 // Command is a parsed command line.

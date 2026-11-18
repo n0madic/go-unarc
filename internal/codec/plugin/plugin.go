@@ -1,7 +1,7 @@
 // Package plugin runs chain stages that FreeArc setups decode through plugins rather than built-in methods
 // (C_WineCLS.cpp):
 //
-//   - srep: the native srep binary, found as UNARC_SREP, else beside unarc, else on PATH;
+//   - srep: the external srep binary, used by unarc when UNARC_SREP overrides its built-in decoder;
 //   - any other method: <UNARC_CLS_DIR>/CLS-<name>.dll from the setup (name matched ignoring case), run by
 //     clshost.exe under Wine; clshost.exe is UNARC_CLSHOST, else beside unarc, else in UNARC_CLS_DIR.
 //
