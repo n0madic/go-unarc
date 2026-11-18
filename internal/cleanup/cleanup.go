@@ -8,22 +8,27 @@ import (
 )
 
 var (
-	mu    sync.Mutex
-	next  int
-	paths = map[int]string{}
+	mu       sync.Mutex
+	next     int
+	removers = map[int]func(){}
 )
 
 // Register remembers path for removal on interrupt and returns the function that forgets it again.
 func Register(path string) (forget func()) {
+	return RegisterFunc(func() { _ = os.RemoveAll(path) })
+}
+
+// RegisterFunc registers cleanup that must use something other than a process-relative path.
+func RegisterFunc(remove func()) (forget func()) {
 	mu.Lock()
 	defer mu.Unlock()
 	id := next
 	next++
-	paths[id] = path
+	removers[id] = remove
 	return func() {
 		mu.Lock()
 		defer mu.Unlock()
-		delete(paths, id)
+		delete(removers, id)
 	}
 }
 
@@ -32,9 +37,9 @@ func RemoveAll() {
 	mu.Lock()
 	defer mu.Unlock()
 	for id := next - 1; id >= 0; id-- {
-		if p, ok := paths[id]; ok {
-			_ = os.RemoveAll(p) // best effort: the program is exiting
-			delete(paths, id)
+		if remove, ok := removers[id]; ok {
+			remove() // best effort: the program is exiting
+			delete(removers, id)
 		}
 	}
 }

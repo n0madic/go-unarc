@@ -26,13 +26,16 @@ var presetBuffer = [...]uint32{
 }
 
 // codec is a parsed tor method. Only the buffer size is kept: it is what GetDecompressionMem reports.
-type codec struct{ buffer uint32 }
+type codec struct {
+	buffer uint32
+	env    *method.Env
+}
 
 // Parse mirrors parse_TORNADO: parameters b (buffer), h (hash size), l (row width), c (coder), p (parser),
 // u (update step), t (table search), ah/al (auxiliary hash size and row width), a bare number that selects a
 // preset 0..11 (C indexes the preset table without a check; larger numbers are rejected here) and otherwise
 // a buffer size.
-func Parse(params []string, _ *method.Env) (method.Codec, bool) {
+func Parse(params []string, env *method.Env) (method.Codec, bool) {
 	if params[0] != "tor" {
 		return nil, false
 	}
@@ -42,7 +45,7 @@ func Parse(params []string, _ *method.Env) (method.Codec, bool) {
 			return nil, false
 		}
 	}
-	return &codec{buffer: buffer}, true
+	return &codec{buffer: buffer, env: env}, true
 }
 
 // parseParam applies one parameter to the buffer size and reports whether it is valid.

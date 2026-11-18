@@ -44,10 +44,11 @@ type codec struct {
 	hashSizeLog    int32  // h: log2 of the number of hash table entries
 	barrier        int32  // d: distance from which smallestLen is used instead of minMatchLen
 	smallestLen    int32  // s
+	env            *method.Env
 }
 
 // Parse mirrors parse_LZP.
-func Parse(params []string, _ *method.Env) (method.Codec, bool) {
+func Parse(params []string, env *method.Env) (method.Codec, bool) {
 	if params[0] != "lzp" {
 		return nil, false
 	}
@@ -58,6 +59,7 @@ func Parse(params []string, _ *method.Env) (method.Codec, bool) {
 		hashSizeLog:    defaultHashSizeLog,
 		barrier:        math.MaxInt32,
 		smallestLen:    defaultSmallestLen,
+		env:            env,
 	}
 	for _, param := range params[1:] {
 		if !c.set(param) {
@@ -150,6 +152,9 @@ func (c codec) Decode(dst io.Writer, src io.Reader) error {
 			if size == math.MinInt32 {
 				return badData("stored block of 2 GB")
 			}
+			if err := c.env.CheckDecoderMemory(uint64(-size)); err != nil {
+				return err
+			}
 			if d.in, err = frame.ReadN(d.in, src, int(-size)); err != nil {
 				return err
 			}
@@ -157,6 +162,9 @@ func (c codec) Decode(dst io.Writer, src io.Reader) error {
 				return err
 			}
 			continue
+		}
+		if err := c.env.CheckDecoderMemory(uint64(size)); err != nil {
+			return err
 		}
 		if d.in, err = frame.ReadN(d.in, src, int(size)); err != nil {
 			return err
@@ -213,6 +221,9 @@ func (d *decoder) block(in []byte) ([]byte, error) {
 	bitsN := d.hashBits()
 	if bitsN > maxHashBits {
 		return nil, fmt.Errorf("lzp: hash table of 2^%d entries is too large", bitsN)
+	}
+	if err := d.env.CheckDecoderMemory(4<<bitsN + uint64(len(in)) + uint64(d.blockSize)); err != nil {
+		return nil, err
 	}
 	if d.table == nil {
 		d.table = make([]uint32, 1<<bitsN)

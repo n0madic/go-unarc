@@ -8,6 +8,7 @@ import (
 	"os"
 	"path/filepath"
 	"sync"
+	"sync/atomic"
 )
 
 // Errors a decoder may return. Callers match them with errors.Is.
@@ -27,10 +28,10 @@ var (
 	ErrOutputTooLarge = errors.New("output block too small")
 )
 
-// Named prefixes an ErrBadData error with the name of the method that reported it; other errors (a write
+// Named prefixes a bad data or limit error with the name of the method that reported it; other errors (a write
 // error of the destination, ErrStop, a missing password) pass unchanged.
 func Named(name string, err error) error {
-	if !errors.Is(err, ErrBadData) {
+	if !errors.Is(err, ErrBadData) && !errors.Is(err, ErrLimit) {
 		return err
 	}
 	return fmt.Errorf("%s: %w", name, err)
@@ -78,6 +79,8 @@ type Env struct {
 	Stdout     io.Writer
 	Stderr     io.Writer
 	External   []Parser // compressors declared in arc.ini, tried before the built-in ones
+	Limits     Limits
+	tempUsed   atomic.Uint64
 }
 
 // NewEnv returns an Env filled from the process environment.
@@ -99,6 +102,7 @@ func NewEnv() *Env {
 		ShowBlocks: blocks,
 		Stdout:     os.Stdout,
 		Stderr:     os.Stderr,
+		Limits:     limitsFromEnv(),
 	}
 	if env.Wine == "" {
 		env.Wine = "wine"

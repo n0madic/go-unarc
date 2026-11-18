@@ -3,13 +3,13 @@
 package extract
 
 import (
+	"crypto/rand"
 	"errors"
 	"hash"
 	"hash/crc32"
 	"os"
 	"path/filepath"
 	"strings"
-	"time"
 
 	"github.com/n0madic/go-unarc/internal/arc"
 	"github.com/n0madic/go-unarc/internal/cleanup"
@@ -53,7 +53,8 @@ func Accept(f *arc.File, names []string) bool {
 // Process extracts or tests one archive, keeping the state (-o+/-o- answers) across solid blocks.
 type Process struct {
 	opts Options
-	base string // OutDir with a trailing path delimiter, as MYFILE::SetBaseDir builds it
+	base string // destination prefix for diagnostics
+	root *os.Root
 
 	// state of the solid block being extracted
 	dir          *arc.Dir
@@ -63,9 +64,12 @@ type Process struct {
 	bytesToWrite uint64
 	crc          hash.Hash32
 	xname        string // name shown in progress lines
-	outName      string // name of the output file (base + xname)
+	outName      string // path shown in diagnostics
+	relName      string // path relative to root
 	out          *os.File
+	tmpName      string
 	forget       func()
+	replace      bool
 }
 
 // New prepares extraction or testing.
@@ -73,22 +77,33 @@ func New(opts Options) *Process {
 	p := &Process{opts: opts, crc: crc32.NewIEEE()}
 	if opts.Cmd != 't' {
 		p.base = opts.OutDir
-		if p.base != "" && !strings.ContainsRune(":/\\", rune(p.base[len(p.base)-1])) {
+		if p.base != "" && !os.IsPathSeparator(p.base[len(p.base)-1]) {
 			p.base += "/"
 		}
 	}
 	return p
 }
 
-// Abort closes and removes the output file being written, as PROCESS::quit does.
+// Abort discards only the staged file, never the destination of a failed write.
 func (p *Process) Abort() {
 	if p.out != nil {
-		p.out.Close()
-		os.Remove(p.outName)
+		_ = p.out.Close()
+		_ = p.root.Remove(p.tmpName)
 		p.out = nil
 		p.forget()
 	}
 }
+
+// Close releases the output root and discards any unfinished file.
+func (p *Process) Close() {
+	p.Abort()
+	if p.root != nil {
+		_ = p.root.Close()
+		p.root = nil
+	}
+}
+
+func (p *Process) fullTest() bool { return p.opts.Cmd == 't' && len(p.opts.Filenames) == 0 }
 
 // ExtractBlock processes the files of solid block b of dir d.
 func (p *Process) ExtractBlock(a *arc.Archive, d *arc.Dir, b int) error {
@@ -111,7 +126,7 @@ func (p *Process) ExtractBlock(a *arc.Archive, d *arc.Dir, b int) error {
 			p.extractUntil = p.cur
 		}
 	}
-	if p.extractUntil < 0 {
+	if p.extractUntil < 0 && (!p.fullTest() || blk.CompSize == 0) {
 		return nil
 	}
 
@@ -121,17 +136,25 @@ func (p *Process) ExtractBlock(a *arc.Archive, d *arc.Dir, b int) error {
 		return err
 	}
 	p.cur = blk.Start
-	if err := p.open(false); err != nil {
-		return err
+	if p.extractUntil >= 0 {
+		if err := p.open(false); err != nil {
+			return err
+		}
 	}
-	compressor := method.AddTempfile(blk.Compressor, method.MaxMem(), p.opts.Env)
-	err = method.Run(compressor, p, src, p.opts.Env)
+	compressor := method.AddTempfile(blk.Compressor, min(method.MaxMem(), p.opts.Env.DecoderLimit()), p.opts.Env)
+	if p.fullTest() {
+		err = method.RunFull(compressor, p, src, p.opts.Env)
+	} else {
+		err = method.Run(compressor, p, src, p.opts.Env)
+	}
 	var fatal *arc.Error
 	switch {
 	case errors.As(err, &fatal), errors.Is(err, ErrAborted):
 		return err
 	case errors.Is(err, method.ErrUnsupportedMethod):
-		return arc.Errorf("ERROR: unsupported compression method %s", blk.Compressor)
+		return arc.Errorf("ERROR: unsupported compression method %s", method.PublicCompressor(blk.Compressor))
+	case errors.Is(err, method.ErrLimit):
+		return arc.Errorf("ERROR: %v", err)
 	case err != nil:
 		return arc.Errorf("ERROR: archive data corrupted (decompression fails)")
 	}
@@ -149,29 +172,41 @@ func (p *Process) ExtractBlock(a *arc.Archive, d *arc.Dir, b int) error {
 
 // Write receives the decompressed stream of the solid block (DecompressCallback "write").
 func (p *Process) Write(buf []byte) (int, error) {
+	if len(buf) == 0 {
+		return 0, nil
+	}
 	if p.cur > p.extractUntil {
+		if p.fullTest() {
+			return 0, method.ErrBadData
+		}
 		return 0, method.ErrStop
 	}
 	n0 := len(buf)
 	for len(buf) > 0 {
 		n := int(min(p.bytesToWrite, uint64(len(buf))))
 		if err := p.write(buf[:n]); err != nil {
-			return 0, err
+			return n0 - len(buf), err
 		}
+		buf = buf[n:]
 		p.bytesToWrite -= uint64(n)
 		if p.bytesToWrite == 0 {
 			if err := p.close(); err != nil {
-				return 0, err
+				return n0 - len(buf), err
 			}
 			p.cur++
 			if p.cur > p.extractUntil {
-				return n0, method.ErrStop
+				if p.fullTest() {
+					if len(buf) != 0 {
+						return n0 - len(buf), method.ErrBadData
+					}
+					return n0, nil // let the decoder verify the end of the block
+				}
+				return n0 - len(buf), method.ErrStop
 			}
 			if err := p.open(false); err != nil {
-				return 0, err
+				return n0 - len(buf), err
 			}
 		}
-		buf = buf[n:]
 	}
 	return n0, nil
 }
@@ -212,12 +247,17 @@ func (p *Process) open(firstPass bool) error {
 	}
 	p.outName = p.base + p.xname
 	if p.included && cmd != 't' && !(f.IsDir && cmd == 'e') {
-		if UnsafePath(p.xname) {
+		p.relName = filepath.FromSlash(p.xname)
+		if UnsafePath(p.xname) || !filepath.IsLocal(p.relName) {
 			return arc.Errorf("ERROR: unsafe path in archive: %s", p.xname)
 		}
+		if err := p.openRoot(); err != nil {
+			return arc.Errorf("ERROR: can't open output directory: %v", err)
+		}
 		if f.IsDir {
-			buildPathTo(p.outName)
-			_ = os.Mkdir(p.outName, 0o777) // an existing folder is fine, as in C
+			if err := p.root.MkdirAll(p.relName, 0o777); err != nil {
+				return arc.Errorf("ERROR: can't create directory %s: %v", p.outName, err)
+			}
 		} else {
 			if err := p.askOverwrite(f); err != nil {
 				return err
@@ -242,19 +282,42 @@ func (p *Process) open(firstPass bool) error {
 	return nil
 }
 
-func (p *Process) askOverwrite(f *arc.File) error {
-	if _, err := os.Lstat(p.outName); err != nil {
+func (p *Process) openRoot() error {
+	if p.root != nil {
 		return nil
+	}
+	dir := p.opts.OutDir
+	if dir == "" {
+		dir = "."
+	}
+	if err := os.MkdirAll(dir, 0o777); err != nil {
+		return err
+	}
+	var err error
+	p.root, err = os.OpenRoot(dir)
+	return err
+}
+
+func (p *Process) askOverwrite(f *arc.File) error {
+	p.replace = p.opts.Yes && !p.opts.No
+	if _, err := p.root.Lstat(p.relName); err != nil {
+		if errors.Is(err, os.ErrNotExist) {
+			return nil
+		}
+		return arc.Errorf("ERROR: can't open file %s: %v", p.outName, err)
 	}
 	switch {
 	case p.opts.No:
 		p.included = false
 	case !p.opts.Yes:
 		switch p.opts.UI.AskOverwrite(p.outName, f.Size, f.Time) {
+		case 'y':
+			p.replace = true
 		case 'n':
 			p.included = false
 		case 'a':
 			p.opts.Yes = true
+			p.replace = true
 		case 's':
 			p.opts.No = true
 			p.included = false
@@ -265,16 +328,30 @@ func (p *Process) askOverwrite(f *arc.File) error {
 	return nil
 }
 
-// create opens the output file the way MYFILE::open(WRITE_MODE) does: parent folders first, mode 0600.
+// create stages the file alongside its destination so publishing it needs no cross-volume copy.
 func (p *Process) create() error {
-	buildPathTo(p.outName)
-	out, err := os.OpenFile(p.outName, os.O_WRONLY|os.O_CREATE|os.O_TRUNC, 0o600)
-	if err != nil {
-		return arc.Errorf("ERROR: can't open file %s", p.outName)
+	parent := filepath.Dir(p.relName)
+	if err := p.root.MkdirAll(parent, 0o777); err != nil {
+		return arc.Errorf("ERROR: can't open file %s: %v", p.outName, err)
 	}
-	p.out = out
-	p.forget = cleanup.Register(p.outName)
-	return nil
+	for range 10 {
+		name := filepath.Join(parent, ".unarc-"+rand.Text())
+		out, err := p.root.OpenFile(name, os.O_WRONLY|os.O_CREATE|os.O_EXCL, 0o600)
+		if errors.Is(err, os.ErrExist) {
+			continue
+		}
+		if err != nil {
+			return arc.Errorf("ERROR: can't open file %s: %v", p.outName, err)
+		}
+		root := p.root
+		p.out, p.tmpName = out, name
+		p.forget = cleanup.RegisterFunc(func() {
+			_ = out.Close()
+			_ = root.Remove(name)
+		})
+		return nil
+	}
+	return arc.Errorf("ERROR: can't stage file %s", p.outName)
 }
 
 func (p *Process) write(buf []byte) error {
@@ -294,27 +371,33 @@ func (p *Process) close() error {
 		if p.crc.Sum32() != f.CRC {
 			return arc.Errorf("ERROR: file %s failed CRC check", p.outName)
 		}
+		if p.bytesToWrite != 0 {
+			return arc.Errorf("ERROR: archive data corrupted (decompression fails)")
+		}
 		if p.out != nil {
-			err := p.out.Close()
-			p.out = nil
-			p.forget()
-			if err != nil {
+			setMtime(p.out, f.Time)
+			if err := p.out.Close(); err != nil {
 				return arc.Errorf("ERROR: can't close file %s", p.outName)
 			}
-			// Only files written here get the archived time (C also touched same-named files in 't' and 'e').
-			_ = os.Chtimes(p.outName, time.Time{}, time.Unix(int64(f.Time), 0))
+			if err := p.publish(); err != nil {
+				return arc.Errorf("ERROR: can't publish file %s: %v", p.outName, err)
+			}
+			p.out = nil
+			p.forget()
 		}
 	}
 	p.included = false
 	return nil
 }
 
-// buildPathTo creates the folders leading to name (BuildPathTo), ignoring failures as C does:
-// opening the file reports them.
-func buildPathTo(name string) {
-	i := strings.LastIndexAny(name, "/\\")
-	if i <= 0 {
-		return
+// publish uses an exclusive link when replacement was not authorized. Unlike a second Lstat,
+// it cannot overwrite a file that appears between the prompt and the commit.
+func (p *Process) publish() error {
+	if p.replace {
+		return p.root.Rename(p.tmpName, p.relName)
 	}
-	_ = os.MkdirAll(filepath.FromSlash(name[:i]), 0o777)
+	if err := p.root.Link(p.tmpName, p.relName); err != nil {
+		return err
+	}
+	return p.root.Remove(p.tmpName)
 }

@@ -42,14 +42,15 @@ func init() { method.Register(Parse) }
 // the method string, neither the C encoder nor the decoder reads it.
 type codec struct {
 	blockSize uint32
+	env       *method.Env
 }
 
 // Parse mirrors parse_DISPACK: "dispack" or "dispack070", then "x", "bSIZE" or a bare SIZE (the block size).
-func Parse(params []string, _ *method.Env) (method.Codec, bool) {
+func Parse(params []string, env *method.Env) (method.Codec, bool) {
 	if params[0] != "dispack" && params[0] != "dispack070" {
 		return nil, false
 	}
-	c := &codec{blockSize: defaultBlockSize}
+	c := &codec{blockSize: defaultBlockSize, env: env}
 	for _, p := range params[1:] {
 		if p == "x" {
 			continue
@@ -108,6 +109,9 @@ func (c *codec) Decode(dst io.Writer, src io.Reader) error {
 			if n < 0 || n > inLimit || (word && n < 4) {
 				return badData("stored record of %d bytes", n)
 			}
+			if err := c.env.CheckDecoderMemory(uint64(n)); err != nil {
+				return err
+			}
 			size = uint32(n)
 			if word {
 				n -= 4
@@ -140,6 +144,9 @@ func (c *codec) Decode(dst io.Writer, src io.Reader) error {
 			if outSize < 0 || uint32(outSize) > c.blockSize || inSize < 0 || int64(inSize) > inLimit ||
 				int64(outSize) > 4*int64(inSize) {
 				return badData("code record of %d bytes from %d", outSize, inSize)
+			}
+			if err := c.env.CheckDecoderMemory(uint64(inSize) + uint64(outSize)); err != nil {
+				return err
 			}
 			if in, err = frame.ReadN(in, src, int(inSize)); err != nil {
 				return err

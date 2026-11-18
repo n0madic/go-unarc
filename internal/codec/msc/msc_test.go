@@ -285,7 +285,7 @@ func FuzzDecode(f *testing.F) {
 	f.Add(good[:len(good)/2])
 	f.Fuzz(func(t *testing.T, data []byte) {
 		out, err := decode(t, data)
-		if err != nil && !errors.Is(err, method.ErrBadData) {
+		if err != nil && !errors.Is(err, method.ErrBadData) && !errors.Is(err, method.ErrLimit) {
 			t.Fatalf("unexpected error: %v", err)
 		}
 		_ = out

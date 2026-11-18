@@ -15,6 +15,11 @@ timeout_s=${DIFFCHECK_TIMEOUT:-600}
 
 [ -n "$c_unarc" ] || { echo "diffcheck: set C_UNARC to the C unarc binary (see the README)" >&2; exit 2; }
 [ -x "$c_unarc" ] || { echo "diffcheck: C_UNARC=$c_unarc is not an executable file" >&2; exit 2; }
+c_unarc=$(cd "$(dirname "$c_unarc")" && pwd)/$(basename "$c_unarc")
+timeout_cmd=$(command -v timeout || command -v gtimeout) || {
+  echo "diffcheck: install timeout (GNU coreutils)" >&2
+  exit 2
+}
 (cd "$root" && go build -o "$go_unarc" ./cmd/unarc)
 
 # Both programs get the same helper tools, so that the "[cls] <tool> ..." lines name the same paths.
@@ -34,12 +39,16 @@ fi
 
 # run <binary> <name> <cmd> <archive>: runs in an empty folder, with no input (C loops on EOF at a prompt).
 run() {
-  local bin=$1 name=$2 cmd=$3 archive=$4
+  local bin=$1 name=$2 cmd=$3 archive=$4 code=0
   rm -rf "$work/$name" && mkdir -p "$work/$name"
-  set +e
-  (cd "$work/$name" && timeout "$timeout_s" "$bin" "$cmd" "$archive" </dev/null >"$work/$name.out" 2>"$work/$name.err")
-  echo $? >"$work/$name.code"
-  set -e
+  (cd "$work/$name" || exit 125
+   exec "$timeout_cmd" "$timeout_s" "$bin" "$cmd" "$archive" </dev/null >"$work/$name.out" 2>"$work/$name.err") || code=$?
+  case $code in
+    0|1|2) echo "$code" >"$work/$name.code" ;;
+    *) echo "diffcheck: $name could not complete $cmd on $(basename "$archive") (status $code)" >&2
+       cat "$work/$name.err" >&2
+       return 2 ;;
+  esac
 }
 
 # Intentional differences, not run (archive:command patterns):
@@ -104,4 +113,5 @@ for a in "${archives[@]}"; do
   done
 done
 echo "diffcheck: $checked runs, $failed differ"
+[ "$checked" -gt 0 ] || { echo "diffcheck: no cases were compared" >&2; exit 2; }
 [ "$failed" -eq 0 ]

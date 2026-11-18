@@ -20,20 +20,31 @@ func TestPrepareCmd(t *testing.T) {
 		options []string
 		def     string
 		want    string
+		args    []string
 	}{
-		{"pack {options} x", []string{"m48", "r1"}, "", "pack -m48 -r1  x"},
-		{"pack {options} x", nil, "-m10", "pack -m10 x"},
-		{"pack {options}", []string{""}, "", "pack - "},
-		{"pack {--option=} x", []string{"a", "b"}, "", "pack --a=--b= x"},
-		{"pack {no} {-option } x", []string{"a"}, "", "pack {no} -a  x"},
-		{"pack {option}", nil, "dflt", "pack dflt"},
-		{"pack {-option x", []string{"a"}, "", "pack {-option x"},
-		{"pack x", []string{"a"}, "", "pack x"},
+		{"pack {options} x", []string{"m48", "r1"}, "", "pack -m48 -r1  x", []string{"pack", "-m48", "-r1", "x"}},
+		{"pack {options} x", nil, "-m10", "pack -m10 x", []string{"pack", "-m10", "x"}},
+		{"pack {--option=} x", []string{"a", "b"}, "", "pack --a= --b= x", []string{"pack", "--a=", "--b=", "x"}},
+		{"pack {no} {-option } x", []string{"a"}, "", "pack {no} -a  x", []string{"pack", "{no}", "-a", "x"}},
+		{"pack {option}", nil, "dflt", "pack dflt", []string{"pack", "dflt"}},
+		{"pack {-option x", []string{"a"}, "", "pack {-option x", []string{"pack", "{-option", "x"}},
+		{"pack x", []string{"a"}, "", "pack x", []string{"pack", "x"}},
+		{`"tool name" {--label option } output`, []string{"two words"}, "", `"tool name" --label two words  output`, []string{"tool name", "--label", "two words", "output"}},
 	}
+	allowed := map[string]bool{"m48": true, "r1": true, "a": true, "b": true, "two words": true}
 	for _, tt := range tests {
-		if got := prepareCmd(tt.cmd, tt.options, tt.def); got != tt.want {
-			t.Errorf("prepareCmd(%q, %q, %q) = %q, want %q", tt.cmd, tt.options, tt.def, got, tt.want)
+		got, err := prepareCmd(tt.cmd, tt.options, tt.def, allowed)
+		if err != nil || got.display != tt.want || !slices.Equal(got.args, tt.args) {
+			t.Errorf("prepareCmd(%q, %q) = %+v, %v; want %q, %q", tt.cmd, tt.options, got, err, tt.want, tt.args)
 		}
+	}
+	for _, template := range []string{"{options} pack", "pack {options} x", `pack "{options}" x`} {
+		if _, err := prepareCmd(template, []string{"not-allowed"}, "", allowed); !errors.Is(err, method.ErrUnsupportedMethod) {
+			t.Errorf("prepareCmd(%q) = %v, want an unsupported option error", template, err)
+		}
+	}
+	if _, err := prepareCmd("{options} pack", []string{"a"}, "", allowed); !errors.Is(err, method.ErrUnsupportedMethod) {
+		t.Errorf("program must be fixed even when the option is allowed, got %v", err)
 	}
 }
 
@@ -159,7 +170,7 @@ func fakeEnv(t *testing.T, script string) (*method.Env, *bytes.Buffer) {
 		t.Skip("shell scripts")
 	}
 	exe := t.TempDir()
-	ini := "[External compressor:fake]\nunpackcmd = fakeunpack {options} $$arcpackedfile$$.tmp $$arcdatafile$$.tmp\ndefault = -dflt\n"
+	ini := "[External compressor:fake]\nunpackcmd = fakeunpack {options} $$arcpackedfile$$.tmp $$arcdatafile$$.tmp\ndefault = -dflt\nallowedopts = x, y\n"
 	if err := os.WriteFile(filepath.Join(exe, iniName), []byte(ini), 0o600); err != nil {
 		t.Fatal(err)
 	}
@@ -250,7 +261,7 @@ func FuzzParseSection(f *testing.F) {
 	f.Add(iniText)
 	f.Fuzz(func(t *testing.T, s string) {
 		for _, c := range parseSection(s) {
-			_ = prepareCmd(c.unpackcmd, []string{"a"}, c.defaultopt)
+			_, _ = prepareCmd(c.unpackcmd, []string{"a"}, c.defaultopt, c.allowedOpts)
 		}
 	})
 }

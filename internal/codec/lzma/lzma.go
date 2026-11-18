@@ -42,16 +42,17 @@ func findMatchFinder(s string) int {
 type codec struct {
 	dictSize   uint32
 	lc, lp, pb uint32
+	env        *method.Env
 }
 
 // Parse mirrors parse_LZMA: named parameters d, h, a, fb, mc, lc, lp, pb, mf; the keywords
 // fastest/fast/normal/max/ultra; unnamed match finder, fast bytes or dictionary size. A '*' prefix makes a
 // parameter optional: its errors are ignored, but, as in C, the error flag stays set for the next parameter.
-func Parse(params []string, _ *method.Env) (method.Codec, bool) {
+func Parse(params []string, env *method.Env) (method.Codec, bool) {
 	if params[0] != "lzma" {
 		return nil, false
 	}
-	c := &codec{dictSize: defaultDict, lc: 3, lp: 0, pb: 2}
+	c := &codec{dictSize: defaultDict, lc: 3, lp: 0, pb: 2, env: env}
 	mf := mfUnset
 	bad := false
 	parseInt := func(s string) uint32 {
@@ -144,7 +145,7 @@ type streamDecoder struct {
 
 func (s *streamDecoder) Decode(dst io.Writer, src io.Reader) error {
 	d := &s.d
-	if err := d.reset(s.c.lc, s.c.lp, s.c.pb, s.c.dictSize); err != nil {
+	if err := d.reset(s.c.lc, s.c.lp, s.c.pb, s.c.dictSize, s.c.env); err != nil {
 		return err
 	}
 	if s.in == nil {

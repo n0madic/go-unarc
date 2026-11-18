@@ -235,8 +235,14 @@ func (c *codec) deriveKey() ([]byte, error) {
 	if c.keySize <= 0 || c.keySize > maxKeySize-checkSize {
 		return nil, badData("crypt: key size %d", c.keySize)
 	}
+	if c.chk != "" && len(c.chk) != 2*checkSize {
+		return nil, badData("crypt: invalid check code length %d", len(c.chk))
+	}
 	// PBKDF2 runs U1 alone for any count below 2, like pkcs_5_alg2 (whose count is a C int).
 	iter := max(int(int32(c.iterations)), 1)
+	if err := c.env.CheckKDFRounds(uint64(iter)); err != nil {
+		return nil, err
+	}
 	derived, err := pbkdf2.Key(sha512.New, c.env.Password, decode16(c.salt, hexval), iter, c.keySize+checkSize)
 	if err != nil {
 		return nil, fmt.Errorf("crypt: %w", err)
@@ -244,9 +250,6 @@ func (c *codec) deriveKey() ([]byte, error) {
 	if c.chk != "" {
 		// C compares strlen(code)/2 bytes, reading past the derived data for longer codes: only the two check
 		// bytes are meaningful.
-		if len(c.chk) != 2*checkSize {
-			return nil, badData("crypt: check code %q", c.chk)
-		}
 		if string(derived[c.keySize:]) != string(decode16(c.chk, hexval)) {
 			fmt.Fprint(c.env.Stderr, "\nERROR: wrong password\n")
 			return nil, method.ErrWrongPassword
@@ -266,8 +269,7 @@ func (c *codec) Decode(dst io.Writer, src io.Reader) error {
 	}
 	info := &ciphers[c.cipher]
 	if c.env.Debug {
-		fmt.Fprintf(c.env.Stderr, "METHOD key=%s iv=%s salt=%s code=%s n=%d ks=%d\n",
-			c.key, c.iv, c.salt, c.chk, int32(c.iterations), c.keySize)
+		fmt.Fprintf(c.env.Stderr, "METHOD cipher=%s n=%d ks=%d\n", info.name, int32(c.iterations), c.keySize)
 	}
 	key, err := c.deriveKey()
 	if err != nil {
@@ -302,13 +304,7 @@ func (c *codec) Decode(dst io.Writer, src io.Reader) error {
 		if n == 0 {
 			return nil
 		}
-		if c.env.Debug {
-			fmt.Fprintf(c.env.Stderr, "KEY:%x\nIV:%x\nIN:%x\n", key, debugIV(iv), buf[:n])
-		}
 		stream.XORKeyStream(buf[:n], buf[:n])
-		if c.env.Debug {
-			fmt.Fprintf(c.env.Stderr, "OUT:%x\n", buf[:n])
-		}
 		if _, err := dst.Write(buf[:n]); err != nil {
 			return err
 		}
@@ -319,10 +315,3 @@ func (c *codec) Decode(dst io.Writer, src io.Reader) error {
 type plain struct{}
 
 func (plain) XORKeyStream(dst, src []byte) { copy(dst, src) }
-
-// debugIV is the 16 bytes of IV the C debug output shows (its buffer holds zeros here past the IV).
-func debugIV(iv []byte) []byte {
-	out := make([]byte, 16)
-	copy(out, iv)
-	return out
-}

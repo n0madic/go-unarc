@@ -287,8 +287,12 @@ func TestDecodeErrors(t *testing.T) {
 		t.Run(tt.name, func(t *testing.T) {
 			t.Parallel()
 			_, err := codectest.Decode(codectest.Parse(t, "mm"), tt.stream)
-			if !errors.Is(err, method.ErrBadData) {
-				t.Fatalf("err = %v, want ErrBadData", err)
+			want := method.ErrBadData
+			if tt.name == "huge header" {
+				want = method.ErrLimit
+			}
+			if !errors.Is(err, want) {
+				t.Fatalf("err = %v, want %v", err, want)
 			}
 		})
 	}
@@ -335,7 +339,8 @@ func TestHugeHeaderIsLazy(t *testing.T) {
 	stream = append(stream, "short"...)
 	var before, after runtime.MemStats
 	runtime.ReadMemStats(&before)
-	_, err := codectest.Decode(codectest.Parse(t, "mm"), stream)
+	c, _ := mm.Parse(method.Params("mm"), &method.Env{Limits: method.Limits{DecoderBytes: 2 * method.GB}})
+	_, err := codectest.Decode(c, stream)
 	runtime.ReadMemStats(&after)
 	if !errors.Is(err, method.ErrBadData) {
 		t.Fatalf("err = %v, want ErrBadData", err)

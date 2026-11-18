@@ -53,14 +53,14 @@ const (
 // wavPrefix is the constant start of a WAV item's payload.
 var wavPrefix = [wavPrefixSize]byte{0, wavHeaderSize, 0, 0, 0, 0, 0}
 
-type codec struct{}
+type codec struct{ env *method.Env }
 
 func (codec) DecompressionMem() uint64 { return decompressionMem }
 
 // Parse accepts "msc:tak=<n>:bmp=0:dxt=0", the parameters of the streams this decoder was checked with: n is
 // the TAK setting of the encoder (the decoder does not need it) and must not be 0, which would turn the audio
 // model off. Anything else, parameters left out included, is not claimed, so the plugin fallback runs the DLL.
-func Parse(params []string, _ *method.Env) (method.Codec, bool) {
+func Parse(params []string, env *method.Env) (method.Codec, bool) {
 	if params[0] != "msc" {
 		return nil, false
 	}
@@ -87,7 +87,7 @@ func Parse(params []string, _ *method.Env) (method.Codec, bool) {
 	if len(seen) != 3 || takLevel == 0 || bmp != 0 || dxt != 0 {
 		return nil, false
 	}
-	return codec{}, true
+	return codec{env: env}, true
 }
 
 func badData(format string, args ...any) error {
@@ -102,7 +102,7 @@ func badTAK(err error) error {
 }
 
 // Decode rebuilds the original stream from the items.
-func (codec) Decode(dst io.Writer, src io.Reader) error {
+func (c codec) Decode(dst io.Writer, src io.Reader) error {
 	in := bufio.NewReaderSize(src, inputBuffer)
 	var head [len(magic) + 4]byte
 	if _, err := io.ReadFull(in, head[:]); err != nil {
@@ -142,6 +142,9 @@ func (codec) Decode(dst io.Writer, src io.Reader) error {
 		case kindWAV:
 			if length > maxWAVPayload {
 				return badData("audio item of %d bytes", length)
+			}
+			if err := c.env.CheckDecoderMemory(uint64(length) + inputBuffer); err != nil {
+				return err
 			}
 			if payload, err = frame.ReadN(payload, in, int(length)); err != nil {
 				return err

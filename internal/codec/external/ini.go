@@ -133,6 +133,13 @@ func (t *compressor) set(key, value string) bool {
 		t.packedfile = text()
 	case "default":
 		t.defaultopt = text()
+	case "allowedopts":
+		t.allowedOpts = make(map[string]bool)
+		for _, opt := range strings.Split(value, ",") {
+			if opt = trimSpaces(opt); opt != "" {
+				t.allowedOpts[opt] = true
+			}
+		}
 	default:
 		return false
 	}

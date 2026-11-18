@@ -197,7 +197,7 @@ func decodeStreamFrom(src io.Reader) ([]byte, error) {
 	return out.Bytes(), err
 }
 
-// The sizes in the stream cost nothing before the data behind them has arrived.
+// Oversized fields are either rejected by the limit or read lazily, without a large allocation.
 func TestDecodeBogusSizesStayCheap(t *testing.T) {
 	// not parallel: it measures the allocations of the process
 	hdr := []byte{3, 0, 1, 8}
@@ -206,21 +206,22 @@ func TestDecodeBogusSizesStayCheap(t *testing.T) {
 	for _, tt := range []struct {
 		name   string
 		stream []byte
+		want   error
 	}{
-		{"offset of 4 GB", cat(hdr, le32(0xFFFFFFFF), few)},
-		{"stored frame of 1 GB", cat(hdr, le32(0), le32(1<<30), le32(0), few)},
-		{"compressed frame of 1 GB", cat(hdr, le32(0), le32(1<<30), le32(1<<30), few)},
-		{"1 GB of samples in a few bytes", cat(hdr, le32(0), le32(1<<30), le32(len32(few)), few)},
-		{"raw frame of 1 GB", cat(rawHdr, le32(0), le32(1<<30), few)},
-		{"float raw frame of 1 GB", cat([]byte{3, 3, 2, 32}, le32(0), le32(1<<30), few)},
-		{"rest of 4 GB", cat(hdr, le32(0), le32(0xFFFFFFF0), le32(0), few)},
+		{"offset of 4 GB", cat(hdr, le32(0xFFFFFFFF), few), method.ErrLimit},
+		{"stored frame of 1 GB", cat(hdr, le32(0), le32(1<<30), le32(0), few), method.ErrBadData},
+		{"compressed frame of 1 GB", cat(hdr, le32(0), le32(1<<30), le32(1<<30), few), method.ErrLimit},
+		{"1 GB of samples in a few bytes", cat(hdr, le32(0), le32(1<<30), le32(len32(few)), few), method.ErrBadData},
+		{"raw frame of 1 GB", cat(rawHdr, le32(0), le32(1<<30), few), method.ErrLimit},
+		{"float raw frame of 1 GB", cat([]byte{3, 3, 2, 32}, le32(0), le32(1<<30), few), method.ErrLimit},
+		{"rest of 4 GB", cat(hdr, le32(0), le32(0xFFFFFFF0), le32(0), few), method.ErrBadData},
 	} {
 		var before, after runtime.MemStats
 		runtime.ReadMemStats(&before)
 		_, err := decodeStream(tt.stream)
 		runtime.ReadMemStats(&after)
-		if !errors.Is(err, method.ErrBadData) {
-			t.Errorf("%s: Decode error = %v, want ErrBadData", tt.name, err)
+		if !errors.Is(err, tt.want) {
+			t.Errorf("%s: Decode error = %v, want %v", tt.name, err, tt.want)
 		}
 		if grown := after.TotalAlloc - before.TotalAlloc; grown > 24<<20 {
 			t.Errorf("%s: %d MB allocated", tt.name, grown>>20)

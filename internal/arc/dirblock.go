@@ -3,6 +3,8 @@ package arc
 import (
 	"fmt"
 	"strings"
+
+	"github.com/n0madic/go-unarc/internal/method"
 )
 
 // File is one entry of a directory block.
@@ -50,7 +52,7 @@ func (a *Archive) ReadDir(blk Block) (*Dir, error) {
 		return nil, err
 	}
 	b := &buffer{data: data}
-	nblocks, err := b.readCount(1, errBadData)
+	nblocks, err := b.readCount(4, errBadData) // four arrays, at least a byte per block in each
 	if err != nil {
 		return nil, err
 	}
@@ -72,20 +74,20 @@ func (a *Archive) ReadDir(blk Block) (*Dir, error) {
 	}
 	d := &Dir{Blocks: make([]DataBlock, nblocks)}
 	var total uint64
+	maxFiles := uint64(b.remaining() / 12) // name, directory, size, time, flag, CRC
 	for i := range d.Blocks {
 		db := &d.Blocks[i]
 		db.Compressor = compressors[i]
 		db.Pos = blk.Pos - offsets[i]
 		db.CompSize = compsizes[i]
 		if a.env.ShowBlocks {
-			fmt.Fprintf(a.env.Stderr, "datablock %s %d %d\n", db.Compressor, int64(db.Pos), int64(db.CompSize))
+			fmt.Fprintf(a.env.Stderr, "datablock %s %d %d\n", method.PublicCompressor(db.Compressor), int64(db.Pos), int64(db.CompSize))
+		}
+		if numFiles[i] > maxFiles-total {
+			return nil, errBadString
 		}
 		db.Start = int(total)
 		total += numFiles[i]
-		// Every file needs at least one byte for its name; more files than that cannot be in the block.
-		if total > uint64(b.remaining()) {
-			return nil, errBadString
-		}
 		db.End = int(total)
 	}
 

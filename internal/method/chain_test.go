@@ -64,6 +64,21 @@ func TestRunStop(t *testing.T) {
 	}
 }
 
+func TestRunFull(t *testing.T) {
+	t.Parallel()
+	env := &Env{Stderr: io.Discard}
+	if err := RunFull("take-one+upper", io.Discard, strings.NewReader("x"), env); err != nil {
+		t.Fatalf("complete chain: %v", err)
+	}
+	if err := RunFull("take-one+upper", io.Discard, strings.NewReader("two"), env); !errors.Is(err, ErrBadData) {
+		t.Fatalf("chain left unread bytes: %v", err)
+	}
+	if err := RunFull("take-one+fail-at-end", io.Discard, strings.NewReader("x"), env); !errors.Is(err, ErrBadData) ||
+		!strings.Contains(err.Error(), "final check failed") {
+		t.Fatalf("upstream final check: %v", err)
+	}
+}
+
 // TestRunErrors is not parallel: it counts goroutines.
 func TestRunErrors(t *testing.T) {
 	before := runtime.NumGoroutine()

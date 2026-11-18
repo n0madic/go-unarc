@@ -111,6 +111,27 @@ func TestPasswordErrors(t *testing.T) {
 	}
 }
 
+func TestKDFBudgetAndDebug(t *testing.T) {
+	t.Parallel()
+	var stderr bytes.Buffer
+	env := &method.Env{Password: password, Stderr: &stderr, Debug: true, Limits: method.Limits{KDFRounds: 2}}
+	iv := strings.Repeat("0", 32)
+	c, _ := Parse(method.Params("aes:n3:i"+iv), env)
+	if err := c.Decode(io.Discard, strings.NewReader("data")); !errors.Is(err, method.ErrLimit) {
+		t.Errorf("KDF above budget: %v", err)
+	}
+	key := strings.Repeat("19", 32)
+	c, _ = Parse(method.Params("aes:k"+key+":i"+iv), env)
+	if err := c.Decode(io.Discard, strings.NewReader("data")); err != nil {
+		t.Fatal(err)
+	}
+	for _, secret := range []string{key, "KEY:", "IN:", "OUT:"} {
+		if strings.Contains(stderr.String(), secret) {
+			t.Errorf("debug output contains %q: %s", secret, stderr.String())
+		}
+	}
+}
+
 // TestRejectedKeyCTR: when the cipher rejects the key or the number of rounds, CTR mode passes the data through
 // unchanged, as the C decoder does (FreeArc 0.67 wrote such archives unencrypted).
 func TestRejectedKeyCTR(t *testing.T) {

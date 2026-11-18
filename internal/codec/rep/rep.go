@@ -32,10 +32,11 @@ type codec struct {
 	barrier        int32  // d
 	smallestLen    int32  // s
 	amplifier      int32  // a
+	env            *method.Env
 }
 
 // Parse mirrors parse_REP.
-func Parse(params []string, _ *method.Env) (method.Codec, bool) {
+func Parse(params []string, env *method.Env) (method.Codec, bool) {
 	if params[0] != "rep" {
 		return nil, false
 	}
@@ -46,6 +47,7 @@ func Parse(params []string, _ *method.Env) (method.Codec, bool) {
 		barrier:        math.MaxInt32,
 		smallestLen:    defaultSmallestLen,
 		amplifier:      defaultAmplifier,
+		env:            env,
 	}
 	for _, param := range params[1:] {
 		if !c.set(param) {
@@ -131,6 +133,12 @@ func (c codec) Decode(dst io.Writer, src io.Reader) error {
 	if size > c.blockSize {
 		return badData("window of %d bytes exceeds the %d bytes of the method", size, c.blockSize)
 	}
+	if err := c.env.CheckDecoderMemory(uint64(size)); err != nil {
+		return err
+	}
+	if uint64(size) > math.MaxInt {
+		return badData("window of %d bytes does not fit in memory", size)
+	}
 	d := &decoder{dst: dst, size: int(size)}
 	for {
 		v, err := frame.ReadInt32(src)
@@ -143,6 +151,9 @@ func (c codec) Decode(dst io.Writer, src io.Reader) error {
 		}
 		if comprSize > math.MaxInt32 {
 			return badData("block of %d bytes", comprSize)
+		}
+		if err := c.env.CheckDecoderMemory(uint64(comprSize)); err != nil {
+			return err
 		}
 		if d.block, err = frame.ReadN(d.block, src, int(comprSize)); err != nil {
 			return err

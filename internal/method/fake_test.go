@@ -3,6 +3,7 @@ package method
 import (
 	"bytes"
 	"errors"
+	"fmt"
 	"io"
 	"strconv"
 	"strings"
@@ -26,7 +27,7 @@ func init() {
 			return fakeCodec{mem: n}, err == nil
 		case "prefix":
 			return fakeCodec{prefix: strings.Join(params[1:], ":")}, true
-		case "fail", "panic", "upper":
+		case "fail", "panic", "upper", "take-one", "fail-at-end":
 			return fakeCodec{kind: params[0]}, true
 		}
 		return nil, false
@@ -46,6 +47,14 @@ func (c fakeCodec) Decode(dst io.Writer, src io.Reader) error {
 	case "fail":
 		_, _ = io.ReadFull(src, make([]byte, 10))
 		return errors.Join(ErrBadData, errors.New("fake failure"))
+	case "take-one":
+		_, err := io.CopyN(dst, src, 1)
+		return err
+	case "fail-at-end":
+		if _, err := io.Copy(dst, src); err != nil {
+			return err
+		}
+		return fmt.Errorf("%w: final check failed", ErrBadData)
 	case "panic":
 		panic("fake panic")
 	case "upper":

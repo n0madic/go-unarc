@@ -28,6 +28,17 @@ func mustParse(t testing.TB, spec string) *codec {
 	return c.(*codec)
 }
 
+func TestModelBudget(t *testing.T) {
+	t.Parallel()
+	c, ok := Parse(method.Params("ppmd:4mb"), &method.Env{Limits: method.Limits{DecoderBytes: method.MB}})
+	if !ok {
+		t.Fatal("could not parse a regular PPMd method")
+	}
+	if err := c.Decode(io.Discard, strings.NewReader("")); !errors.Is(err, method.ErrLimit) {
+		t.Fatalf("PPMd accepted a model above the configured budget: %v", err)
+	}
+}
+
 // decode runs the whole decoder and returns the model it ended with.
 func decode(t testing.TB, c *codec, comp []byte) ([]byte, *decoder, error) {
 	t.Helper()

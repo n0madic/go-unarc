@@ -16,12 +16,17 @@ import (
 // everything before it is decoded into a temp file before the rest starts.
 // A dst.Write returning ErrStop ends decoding early and counts as success.
 func Run(compressor string, dst io.Writer, src io.Reader, env *Env) error {
-	return run(compressor, dst, src, env, true)
+	return run(compressor, dst, src, env, true, false)
 }
 
-func run(compressor string, dst io.Writer, src io.Reader, env *Env, announce bool) error {
+// RunFull verifies that every stage finishes without dropping unread input.
+func RunFull(compressor string, dst io.Writer, src io.Reader, env *Env) error {
+	return run(compressor, dst, src, env, true, true)
+}
+
+func run(compressor string, dst io.Writer, src io.Reader, env *Env, announce, full bool) error {
 	if env.Debug && announce {
-		fmt.Fprintf(env.Stderr, "MultiDecompress %s\n", compressor)
+		fmt.Fprintf(env.Stderr, "MultiDecompress %s\n", PublicCompressor(compressor))
 	}
 	methods := Split(compressor)
 	codecs := make([]Codec, len(methods))
@@ -35,7 +40,7 @@ func run(compressor string, dst io.Writer, src io.Reader, env *Env, announce boo
 				}
 				fmt.Fprintf(env.Stderr, "\nERROR: compression method \"%s\" is not supported%s\n", Name(m), hint)
 			}
-			return fmt.Errorf("%w: %s", ErrUnsupportedMethod, m)
+			return fmt.Errorf("%w: %s", ErrUnsupportedMethod, PublicCompressor(m))
 		}
 		codecs[i] = c
 	}
@@ -44,7 +49,7 @@ func run(compressor string, dst io.Writer, src io.Reader, env *Env, announce boo
 	for i, c := range codecs {
 		stages[len(codecs)-1-i] = stage{codec: c, name: Name(methods[i])}
 	}
-	err := runStages(stages, dst, src, env)
+	err := runStages(stages, dst, src, env, full)
 	if env.Debug && errors.Is(err, ErrBadData) {
 		fmt.Fprintf(env.Stderr, "Decompress error: %v\n", err)
 	}
@@ -57,7 +62,7 @@ type stage struct {
 	name  string
 }
 
-func runStages(stages []stage, dst io.Writer, src io.Reader, env *Env) error {
+func runStages(stages []stage, dst io.Writer, src io.Reader, env *Env, full bool) error {
 	in := src
 	var segment []stage
 	for _, s := range stages {
@@ -65,7 +70,7 @@ func runStages(stages []stage, dst io.Writer, src io.Reader, env *Env) error {
 			segment = append(segment, s)
 			continue
 		}
-		f, err := spill(segment, in, env)
+		f, err := spill(segment, in, env, full)
 		if err != nil {
 			return err
 		}
@@ -75,37 +80,40 @@ func runStages(stages []stage, dst io.Writer, src io.Reader, env *Env) error {
 	}
 	if len(segment) == 0 {
 		_, err := io.Copy(dst, in)
-		if errors.Is(err, ErrStop) {
+		if !full && errors.Is(err, ErrStop) {
 			err = nil
 		}
 		return err
 	}
-	return pipeline(segment, dst, in)
+	return pipeline(segment, dst, in, full)
 }
 
 // tempFile is a temp file that removes itself on close.
 type tempFile struct {
 	*os.File
 	forget func()
+	space  *TempSpace
 }
 
 func (t tempFile) close() {
 	t.File.Close()
 	os.Remove(t.Name())
 	t.forget()
+	t.space.Release()
 }
 
 // spill decodes in through stages into a new temp file and returns it rewound.
-func spill(stages []stage, in io.Reader, env *Env) (tempFile, error) {
+func spill(stages []stage, in io.Reader, env *Env, full bool) (tempFile, error) {
 	f, err := os.CreateTemp(env.Temp(), "unarc-tempfile-*")
 	if err != nil {
 		return tempFile{}, fmt.Errorf("temp file: %w", err)
 	}
-	t := tempFile{File: f, forget: cleanup.Register(f.Name())}
+	t := tempFile{File: f, forget: cleanup.Register(f.Name()), space: env.TempSpace()}
+	dst := t.space.Writer(f)
 	if len(stages) == 0 {
-		_, err = io.Copy(f, in)
+		_, err = io.Copy(dst, in)
 	} else {
-		err = pipeline(stages, f, in)
+		err = pipeline(stages, dst, in, full)
 	}
 	if err == nil {
 		_, err = f.Seek(0, io.SeekStart)
@@ -143,11 +151,11 @@ func (f *firstError) get() error {
 // pipeline runs stages concurrently: stages[0] reads src, each stage feeds the next through a pipe,
 // the last one writes dst. A stage that fails or finishes early closes its input so the stage before it
 // stops on its next write, and closes its output so the stage after it sees the error or EOF.
-func pipeline(stages []stage, dst io.Writer, src io.Reader) error {
+func pipeline(stages []stage, dst io.Writer, src io.Reader, full bool) error {
 	n := len(stages)
 	if n == 1 {
-		err := decode(stages[0], dst, src)
-		if errors.Is(err, ErrStop) {
+		err := decode(stages[0], dst, src, full)
+		if !full && errors.Is(err, ErrStop) {
 			err = nil
 		}
 		return err
@@ -170,7 +178,7 @@ func pipeline(stages []stage, dst io.Writer, src io.Reader) error {
 		wg.Add(1)
 		go func() {
 			defer wg.Done()
-			err := decode(st, writers[i], readers[i])
+			err := decode(st, writers[i], readers[i], full)
 			first.set(err) // before closing the pipes, so the root cause is recorded first
 			if w := pipeW[i]; w != nil {
 				if err != nil {
@@ -191,14 +199,28 @@ func pipeline(stages []stage, dst io.Writer, src io.Reader) error {
 // decode runs one stage, turns a panic on malformed input into ErrBadData and names the stage in that error.
 // A stage that only passes on the error of the stage before it (read from their pipe) names it again, but by
 // then the pipeline has recorded the first one.
-func decode(s stage, dst io.Writer, src io.Reader) (err error) {
+func decode(s stage, dst io.Writer, src io.Reader, full bool) (err error) {
 	defer func() {
 		if r := recover(); r != nil {
 			err = fmt.Errorf("%w: decoder panic: %v", ErrBadData, r)
 		}
 		err = Named(s.name, err)
 	}()
-	return s.codec.Decode(dst, src)
+	if err := s.codec.Decode(dst, src); err != nil || !full {
+		if full && errors.Is(err, ErrStop) {
+			return fmt.Errorf("%w: decoder stopped before its end", ErrBadData)
+		}
+		return err
+	}
+	// Do not cancel the previous stage at an end marker: wait for EOF or its final check. A byte
+	// left over from the previous stage is itself a mismatch between the two stages.
+	var extra [1]byte
+	if n, err := io.ReadFull(src, extra[:]); n != 0 {
+		return fmt.Errorf("%w: bytes left after the decoder finished", ErrBadData)
+	} else if err != io.EOF {
+		return err
+	}
+	return nil
 }
 
 // limitBuffer collects at most max bytes.
@@ -229,9 +251,16 @@ func (c *countingReader) Read(p []byte) (int, error) {
 // DecompressMem decodes a control block held in memory into at most outSize bytes, as C DecompressMem does:
 // a single method runs directly, a chain goes through Run (which reports unsupported stages on stderr).
 func DecompressMem(compressor string, in []byte, outSize uint64, env *Env) ([]byte, error) {
+	if limit := env.ControlLimit(); uint64(len(in)) > limit || outSize > limit {
+		return nil, fmt.Errorf("%w: control block exceeds %d bytes", ErrLimit, limit)
+	}
 	out := &limitBuffer{max: outSize}
 	src := &countingReader{r: bytes.NewReader(in)}
-	err := run(compressor, out, src, env, bytes.IndexByte([]byte(compressor), '+') >= 0)
+	announce := bytes.IndexByte([]byte(compressor), '+') >= 0
+	if announce {
+		compressor = AddTempfile(compressor, min(MaxMem(), env.DecoderLimit()), env)
+	}
+	err := run(compressor, out, src, env, announce, false)
 	if env.Debug {
 		fmt.Fprintf(env.Stderr, "DecompressMem result=%d writeLeft=%d outputSize=%d readLeft=%d inputSize=%d\n",
 			CCode(err), outSize-uint64(out.buf.Len()), outSize, int64(len(in))-src.n, len(in))

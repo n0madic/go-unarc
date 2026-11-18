@@ -48,7 +48,8 @@ func TestSrep(t *testing.T) {
 tr a-z A-Z < "$2" > "$3"
 `)
 	var stderr bytes.Buffer
-	env := &method.Env{Srep: srep, Stderr: &stderr}
+	work := t.TempDir()
+	env := &method.Env{Srep: srep, Stderr: &stderr, TempDir: work}
 	got, err := decode(t, env, "srep:m3f:a1", []byte("hello"))
 	if err != nil || string(got) != "HELLO" {
 		t.Fatalf("decode = %q, %v", got, err)
@@ -75,6 +76,9 @@ tr a-z A-Z < "$2" > "$3"
 	}
 	if data, err := os.ReadFile(kept); !ok || err != nil || string(data) != "kept" {
 		t.Errorf("kept input %q: %q, %v (stderr %q)", kept, data, err, stderr.String())
+	}
+	if filepath.Dir(filepath.Dir(kept)) != work {
+		t.Errorf("kept input %q is not under the work directory %q", kept, work)
 	}
 }
 
@@ -104,6 +108,10 @@ func TestFailures(t *testing.T) {
 
 func TestCLS(t *testing.T) {
 	tmpdir(t)
+	t.Chdir(t.TempDir())
+	if err := os.Mkdir("work", 0o700); err != nil {
+		t.Fatal(err)
+	}
 	t.Setenv("WINEDEBUG", "")
 	os.Unsetenv("WINEDEBUG")
 	cls, bin := t.TempDir(), t.TempDir()
@@ -113,10 +121,11 @@ func TestCLS(t *testing.T) {
 	// A wine that runs "clshost dll params in out" itself: it maps Z:\ paths back and writes what it got.
 	wine := script(t, bin, "wine", `unz() { printf '%s\n' "$1" | sed 's/^Z://; s|\\|/|g'; }
 in=$(unz "$4"); out=$(unz "$5")
+case "$in" in /*) ;; *) exit 9 ;; esac
 { echo "$1|$(basename "$(unz "$2")")|$3|$WINEDEBUG"; cat "$in"; } > "$out"
 `)
 	var stderr bytes.Buffer
-	env := &method.Env{CLSDir: cls, Wine: wine, CLSHost: "/opt/clshost.exe", Stderr: &stderr}
+	env := &method.Env{CLSDir: cls, Wine: wine, CLSHost: "/opt/clshost.exe", Stderr: &stderr, TempDir: "work"}
 	got, err := decode(t, env, "foo:a:b", []byte("data"))
 	if want := "/opt/clshost.exe|cls-Foo.DLL|a:b|-all\ndata"; err != nil || string(got) != want {
 		t.Fatalf("decode = %q, %v; want %q", got, err, want)

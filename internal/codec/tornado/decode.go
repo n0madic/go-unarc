@@ -52,10 +52,11 @@ func (c *codec) Decode(dst io.Writer, src io.Reader) error { return c.NewDecoder
 
 // NewDecoder returns a decoder for one goroutine that keeps the input buffer and the ring from one stream to
 // the next.
-func (c *codec) NewDecoder() method.Decoder { return new(streamDecoder) }
+func (c *codec) NewDecoder() method.Decoder { return &streamDecoder{env: c.env} }
 
 // streamDecoder is the memory of a decoding, kept for the next stream.
 type streamDecoder struct {
+	env *method.Env
 	in  []byte // inStream.buf
 	buf []byte // output.buf
 }
@@ -65,6 +66,9 @@ func (d *streamDecoder) Decode(dst io.Writer, src io.Reader) error {
 	d.in = in.buf
 	s, bufSize, err := openStream(in)
 	if err != nil {
+		return err
+	}
+	if err := d.env.CheckDecoderMemory(uint64(max(bufSize, hugeBuffer))); err != nil {
 		return err
 	}
 	o, err := newOutput(dst, bufSize, d.buf)

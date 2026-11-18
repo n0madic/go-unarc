@@ -30,7 +30,7 @@ func TestSpillStream(t *testing.T) {
 	}
 	for i, tt := range tests {
 		p := filepath.Join(dir, string(rune('a'+i)))
-		n, err := Spill(p, []byte(tt.prefix), strings.NewReader(tt.in), 333, tt.lazy)
+		n, err := Spill(p, []byte(tt.prefix), strings.NewReader(tt.in), 333, tt.lazy, nil)
 		if err != nil || n != int64(len(tt.prefix)+len(tt.in)) {
 			t.Errorf("%s: Spill = %d, %v", tt.name, n, err)
 			continue
@@ -43,7 +43,7 @@ func TestSpillStream(t *testing.T) {
 			continue
 		}
 		var out bytes.Buffer
-		if err := Stream(&out, p, 77); err != nil || out.String() != tt.prefix+tt.in {
+		if err := Stream(&out, p, 77, nil); err != nil || out.String() != tt.prefix+tt.in {
 			t.Errorf("%s: Stream = %d bytes, %v", tt.name, out.Len(), err)
 		}
 	}
@@ -61,13 +61,13 @@ func TestStreamErrors(t *testing.T) {
 		t.Fatal(err)
 	}
 	stop := errors.New("stop")
-	if err := Stream(failWriter{stop}, p, 2); err != stop {
+	if err := Stream(failWriter{stop}, p, 2, nil); err != stop {
 		t.Errorf("writer error: %v", err)
 	}
-	if err := Stream(&bytes.Buffer{}, filepath.Join(dir, "missing"), 2); !errors.Is(err, os.ErrNotExist) {
+	if err := Stream(&bytes.Buffer{}, filepath.Join(dir, "missing"), 2, nil); !errors.Is(err, os.ErrNotExist) {
 		t.Errorf("missing file: %v", err)
 	}
-	if _, err := Spill(filepath.Join(dir, "no", "such", "dir"), nil, strings.NewReader("x"), 2, false); err == nil {
+	if _, err := Spill(filepath.Join(dir, "no", "such", "dir"), nil, strings.NewReader("x"), 2, false, nil); err == nil {
 		t.Error("Spill into a missing folder succeeded")
 	}
 }

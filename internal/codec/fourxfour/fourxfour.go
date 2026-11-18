@@ -40,6 +40,7 @@ type codec struct {
 	blockSize uint32 // b; 0 = the inner method's dictionary
 	extra     uint32 // i: buffers read ahead, which only count in the memory estimate
 	workers   int    // decoding goroutines
+	env       *method.Env
 }
 
 // Parse mirrors parse_4x4: "4x4", its own parameters, then the inner method, whose parameters are the rest of
@@ -56,7 +57,7 @@ func Parse(params []string, env *method.Env) (method.Codec, bool) {
 	if params[0] != "4x4" {
 		return nil, false
 	}
-	c := &codec{extra: defaultExtra}
+	c := &codec{extra: defaultExtra, env: env}
 	var threads uint32
 	inner := defaultMethod
 	for i, p := range params[1:] {
@@ -176,14 +177,19 @@ func (c *codec) Decode(dst io.Writer, src io.Reader) error {
 	case version != formatVersion:
 		return fmt.Errorf("%w: format version %d", method.ErrBadData, version)
 	}
-	r := &reader{src: src}
-	return parallel.Decode(dst, c.workers, r.next, c.decodeBlock)
+	worker, _ := c.memory()
+	budget := c.env.DecoderLimit()
+	workers := int(min(uint64(c.workers), max(1, budget/worker)))
+	// The queue retains more items than the number of decoding workers.
+	r := &reader{src: src, budget: budget / uint64(workers+workers/2+1)}
+	return parallel.Decode(dst, workers, r.next, c.decodeBlock)
 }
 
 // reader reads the blocks of one stream.
 type reader struct {
-	src   io.Reader
-	limit int64 // the largest OutSize or InSize allowed; 0 until the first block sets it
+	src    io.Reader
+	limit  int64  // the largest OutSize or InSize allowed; 0 until the first block sets it
+	budget uint64 // input + output bytes allowed per queued block
 }
 
 // next reads a block header and its payload. Like the C decoder, it refuses a block larger than the
@@ -213,6 +219,9 @@ func (r *reader) next(j *parallel.Job[int32]) (bool, error) {
 	if int64(inSize) > r.limit || int64(outSize) > r.limit {
 		return false, fmt.Errorf("%w: block of %d bytes from %d, larger than the first block allows (%d)",
 			method.ErrBadData, outSize, inSize, r.limit)
+	}
+	if size := uint64(inSize) + uint64(max(0, outSize)); size > r.budget {
+		return false, fmt.Errorf("%w: 4x4 block needs %d bytes (limit %d)", method.ErrLimit, size, r.budget)
 	}
 	j.Header = outSize
 	if j.In, err = frame.ReadN(j.In, r.src, int(inSize)); err != nil {

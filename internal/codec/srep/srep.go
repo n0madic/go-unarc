@@ -48,16 +48,18 @@ func badData(what string) error { return fmt.Errorf("%w: %s", method.ErrBadData,
 var errEnd = errors.New("end of SREP stream")
 
 type decoder struct {
-	env     *method.Env
-	version byte
-	base    uint64 // base match length, also the unit of distance/length in v1
-	check   blockHash
-	pos     uint64
-	stats   []byte
-	out     []byte
-	pending matchHeap
-	history *os.File
-	temps   *filestage.Dir
+	env          *method.Env
+	version      byte
+	base         uint64 // base match length, also the unit of distance/length in v1
+	check        blockHash
+	pos          uint64
+	stats        []byte
+	out          []byte
+	pending      matchHeap
+	history      *os.File
+	historySpace *method.TempSpace
+	packedSpace  *method.TempSpace
+	temps        *filestage.Dir
 }
 
 func (c codec) Decode(dst io.Writer, src io.Reader) error {
@@ -85,6 +87,8 @@ func (c codec) Decode(dst io.Writer, src io.Reader) error {
 		if d.temps != nil {
 			d.temps.Remove()
 		}
+		d.historySpace.Release()
+		d.packedSpace.Release()
 	}()
 	if d.version == 4 {
 		return d.decodeIndexed(dst, src)
@@ -93,6 +97,11 @@ func (c codec) Decode(dst io.Writer, src io.Reader) error {
 	for {
 		err := d.block(dst, in, in, -1)
 		if err == errEnd {
+			if _, err := in.ReadByte(); err == nil {
+				return badData("unused bytes after the end marker")
+			} else if err != io.EOF {
+				return err
+			}
 			return d.finish()
 		}
 		if err != nil {
@@ -157,6 +166,13 @@ func (d *decoder) block(dst io.Writer, data, index io.Reader, indexSize int64) e
 	if statSize > maxStatSize || statSize%recordSize != 0 || (d.version <= 2 && statSize/recordSize > int64(size-literals)) {
 		return badData("invalid match list size")
 	}
+	memory := uint64(size) + uint64(statSize)
+	if d.version >= 3 {
+		memory += 24 * uint64(min(maxPending, len(d.pending)+int(statSize/recordSize)))
+	}
+	if err := d.env.CheckDecoderMemory(memory); err != nil {
+		return err
+	}
 	var err error
 	d.stats, err = frame.ReadN(d.stats, index, int(statSize))
 	if err != nil {
@@ -190,6 +206,10 @@ func (d *decoder) block(dst io.Writer, data, index io.Reader, indexSize int64) e
 			if err != nil {
 				return err
 			}
+			d.historySpace = d.env.TempSpace()
+		}
+		if err := d.historySpace.Grow(d.pos + uint64(size)); err != nil {
+			return err
 		}
 		if _, err := d.history.WriteAt(d.out, int64(d.pos)); err != nil {
 			return err
@@ -219,12 +239,13 @@ func (d *decoder) decodeIndexed(dst io.Writer, src io.Reader) error {
 		}
 	}
 	if body == nil {
+		d.packedSpace = d.env.TempSpace()
 		f, err := d.temp("packed")
 		if err != nil {
 			return err
 		}
 		defer f.Close()
-		n, err := io.CopyBuffer(f, src, make([]byte, ioBufferSize))
+		n, err := io.CopyBuffer(d.packedSpace.Writer(f), src, make([]byte, ioBufferSize))
 		if err != nil {
 			return err
 		}

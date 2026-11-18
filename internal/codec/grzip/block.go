@@ -79,6 +79,7 @@ func lzpParams(mode int32) (minMatch int, hashLog uint) {
 
 // decoder holds the working memory of one worker, reused from block to block.
 type decoder struct {
+	env    *method.Env
 	ari    *ariDecoder
 	mid    []byte   // arithmetic decoder output, then inverse BWT/ST4 in place, then LZP input
 	table  []uint32 // BWT / ST4 index table
@@ -124,6 +125,9 @@ func (d *decoder) lzp(mode int32, src, dst []byte) error {
 	if hashLog > maxHashLog {
 		return errCorrupt("LZP hash size 2^%d is not supported", hashLog)
 	}
+	if err := d.env.CheckDecoderMemory(4 << hashLog); err != nil {
+		return err
+	}
 	d.hash.reset(hashLog)
 	return lzpDecode(dst, src, minMatch, hashLog, &d.hash)
 }
@@ -135,6 +139,9 @@ func (d *decoder) compressed(h *header, payload, dst []byte) error {
 		return errCorrupt("transformed size %d out of range", lzpSize)
 	}
 	n := (lzpSize + 7) &^ 7 // the encoder pads the transformed text to a multiple of 8
+	if err := d.env.CheckDecoderMemory(8 * uint64(n)); err != nil {
+		return err
+	}
 	d.mid = resize(d.mid, n)
 	if d.ari == nil {
 		d.ari = new(ariDecoder)

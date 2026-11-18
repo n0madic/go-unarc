@@ -4,6 +4,7 @@ import (
 	"errors"
 	"fmt"
 	"io"
+	"math"
 	"slices"
 
 	"github.com/n0madic/go-unarc/internal/method"
@@ -31,13 +32,13 @@ const (
 	writeBlock = 1 << 14
 )
 
-type codec struct{}
+type codec struct{ env *method.Env }
 
 func (codec) DecompressionMem() uint64 { return decompressionMem }
 
 // Parse mirrors parse_TTA. The parameters only steer the compressor (level, header detection, channel layout,
 // raw output); the decoder takes everything from the stream header, so they are validated and dropped.
-func Parse(params []string, _ *method.Env) (method.Codec, bool) {
+func Parse(params []string, env *method.Env) (method.Codec, bool) {
 	if params[0] != "tta" {
 		return nil, false
 	}
@@ -46,7 +47,7 @@ func Parse(params []string, _ *method.Env) (method.Codec, bool) {
 			return nil, false
 		}
 	}
-	return codec{}, true
+	return codec{env: env}, true
 }
 
 // validParam reports whether parse_TTA accepts one parameter.
@@ -111,8 +112,8 @@ type header struct {
 // A stream that ends right after a complete frame is a success. The C decoder reports
 // FREEARC_ERRCODE_READ there, which only goes unnoticed because unarc stops it earlier, once the last file
 // is complete (ErrStop here); a consumer that wants more data finds it missing either way.
-func (codec) Decode(dst io.Writer, src io.Reader) error {
-	d := decoder{dst: dst, src: src}
+func (c codec) Decode(dst io.Writer, src io.Reader) error {
+	d := decoder{dst: dst, src: src, env: c.env}
 	return d.decode()
 }
 
@@ -121,6 +122,7 @@ type decoder struct {
 	dst io.Writer
 	src io.Reader
 	hdr header
+	env *method.Env
 
 	scratch []byte    // headers, copied blocks, raw samples
 	bitArr  []byte    // compressed frame, followed by bitArrayPad zero bytes
@@ -166,6 +168,12 @@ func (d *decoder) readUint32() (v uint32, eof bool, err error) {
 // readBlock reads exactly n bytes into buf[:n] (reusing its memory) and appends pad zero bytes.
 // The buffer grows while the data arrives, so a bogus n costs no more memory than the stream really holds.
 func (d *decoder) readBlock(buf []byte, n uint64, pad int) ([]byte, error) {
+	if n+uint64(pad) > math.MaxInt {
+		return nil, fmt.Errorf("%w: TTA buffer doesn't fit in an int", method.ErrLimit)
+	}
+	if err := d.env.CheckDecoderMemory(n + uint64(pad)); err != nil {
+		return nil, err
+	}
 	buf = buf[:0]
 	for uint64(len(buf)) < n {
 		step := int(min(n-uint64(len(buf)), readStep))
@@ -320,6 +328,9 @@ func (d *decoder) copyBlock(n uint64) error {
 // readRawSamples reads the planes of an uncompressed frame (raw mode): frameLen int32 for each plane.
 func (d *decoder) readRawSamples(frameLen int) error {
 	total := uint64(frameLen) * uint64(d.hdr.planes)
+	if err := d.env.CheckDecoderMemory(4 * total); err != nil {
+		return err
+	}
 	d.samples = d.samples[:0]
 	for uint64(len(d.samples)) < total {
 		step := int(min(total-uint64(len(d.samples)), readStep/4))
@@ -349,6 +360,9 @@ func (d *decoder) decodeSamples(frameLen int, size uint64) error {
 	total := uint64(frameLen) * uint64(d.hdr.planes)
 	if total > size*8 {
 		return badData("frame of %d samples in %d bytes", total, size)
+	}
+	if err := d.env.CheckDecoderMemory(size + 4*total); err != nil {
+		return err
 	}
 	d.samples = slices.Grow(d.samples[:0], int(total))[:total]
 

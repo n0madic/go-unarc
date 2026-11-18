@@ -43,6 +43,7 @@ type compressor struct {
 	datafile, packedfile string
 	unpackcmd            string
 	defaultopt           string
+	allowedOpts          map[string]bool
 }
 
 // codec is a compressor with the parameters of one method string.
@@ -79,7 +80,6 @@ func unsupported(format string, args ...any) error {
 // Decode mirrors external_program for decompression. A program that fails or leaves no output makes the
 // method unsupported, as in C.
 func (c *codec) Decode(dst io.Writer, src io.Reader) error {
-	cmd := prepareCmd(c.unpackcmd, c.options, c.defaultopt)
 	var header [1]byte
 	if _, err := io.ReadFull(src, header[:]); err != nil {
 		if errors.Is(err, io.EOF) || errors.Is(err, io.ErrUnexpectedEOF) {
@@ -87,29 +87,43 @@ func (c *codec) Decode(dst io.Writer, src io.Reader) error {
 		}
 		return err
 	}
+	var cmd command
+	if header[0] != 0 && c.unpackcmd != "" {
+		var err error
+		cmd, err = prepareCmd(c.unpackcmd, c.options, c.defaultopt, c.allowedOpts)
+		if err != nil {
+			return err
+		}
+	}
 	dir, err := filestage.NewDir(c.env.Temp(), "freearc")
 	if err != nil {
 		return err
 	}
+	packedSpace, unpackedSpace := c.env.TempSpace(), c.env.TempSpace()
+	defer packedSpace.Release()
+	defer unpackedSpace.Release()
 	defer dir.Remove()
 	in, out := filepath.Join(dir.Path, c.packedfile), filepath.Join(dir.Path, c.datafile)
-	run := header[0] != 0
 	var prefix []byte
 	if header[0] > 1 {
 		// No header byte: the data starts right away (FreeArc before 0.40).
 		prefix, out = header[:], filepath.Join(dir.Path, legacyOutput)
 	}
-	n, err := filestage.Spill(in, prefix, src, bufferSize, true)
+	n, err := filestage.Spill(in, prefix, src, bufferSize, true, packedSpace)
 	if err != nil {
 		return err
 	}
-	if cmd != "" && run {
+	outputSpace := packedSpace
+	if cmd.display != "" {
 		stdout := orDiscard(c.env.Stdout)
-		fmt.Fprintf(stdout, "\nUnpacking %s bytes with %s\n", show3(uint64(n)), cmd)
-		code := c.runCommand(cmd, dir.Path)
+		fmt.Fprintf(stdout, "\nUnpacking %s bytes with %s\n", show3(uint64(n)), cmd.display)
+		code := c.runCommand(cmd.args, dir.Path)
 		fmt.Fprintf(stdout, "\nErrorlevel=%d\n", code)
 		if code != 0 {
-			return unsupported("%s exited with %d", cmd, code)
+			return unsupported("%s exited with %d", cmd.display, code)
+		}
+		if in != out {
+			outputSpace = unpackedSpace
 		}
 	} else {
 		_ = os.Rename(in, out) // a missing input shows up below as a missing output, as in C
@@ -117,12 +131,11 @@ func (c *codec) Decode(dst io.Writer, src io.Reader) error {
 	if _, err := os.Stat(out); err != nil {
 		return unsupported("external %s produced no %s", c.name, filepath.Base(out))
 	}
-	return filestage.Stream(dst, out, bufferSize)
+	return filestage.Stream(dst, out, bufferSize, outputSpace)
 }
 
-// runCommand runs cmdline in dir and returns its exit code; 127 if it could not start.
-func (c *codec) runCommand(cmdline, dir string) int {
-	args := splitCommand(cmdline)
+// runCommand runs an already parsed command and returns its exit code; 127 if it could not start.
+func (c *codec) runCommand(args []string, dir string) int {
 	if len(args) == 0 {
 		return 127
 	}
@@ -187,9 +200,14 @@ func splitCommand(s string) []string {
 	return args
 }
 
-// prepareCmd mirrors prepare_cmd: it replaces "{options}" with "-opt1 -opt2 ", or the first "{...option...}"
-// template with the text around "option" repeated for each option; without options, with the default ones.
-func prepareCmd(cmd string, options []string, defaultopt string) string {
+type command struct {
+	args    []string
+	display string
+}
+
+// prepareCmd tokenizes the trusted template before inserting options. The standalone option field
+// can expand to arguments, but it cannot be the executable or introduce a new option from archive data.
+func prepareCmd(cmd string, options []string, defaultopt string, allowed map[string]bool) (command, error) {
 	const optionsStr, optionStr = "{options}", "option"
 	before, after := "-", " "
 	start, n := strings.Index(cmd, optionsStr), len(optionsStr)
@@ -212,17 +230,37 @@ func prepareCmd(cmd string, options []string, defaultopt string) string {
 		}
 	}
 	if start < 0 {
-		return cmd
+		return command{splitCommand(cmd), cmd}, nil
 	}
+	prefix, suffix := cmd[:start], cmd[start+n:]
+	args := splitCommand(prefix)
+	if len(args) == 0 || !isSpace(prefix[len(prefix)-1]) || (suffix != "" && !isSpace(suffix[0])) ||
+		strings.Count(prefix, `"`)%2 != 0 || strings.Count(suffix, `"`)%2 != 0 {
+		return command{}, unsupported("option placeholder must be a separate field after the program")
+	}
+	suffixArgs := splitCommand(suffix)
 	repl := defaultopt
-	if len(options) > 0 {
+	if len(options) == 0 {
+		args = append(args, splitCommand(defaultopt)...)
+	} else {
+		const marker = "\x00"
+		pattern := splitCommand(before + marker + after)
 		var b strings.Builder
-		for _, o := range options {
+		for i, o := range options {
+			if !allowed[o] {
+				return command{}, unsupported("option is not allowed by arc.ini")
+			}
+			for _, arg := range pattern {
+				args = append(args, strings.ReplaceAll(arg, marker, o))
+			}
+			if i > 0 && (after == "" || !isSpace(after[len(after)-1])) {
+				b.WriteByte(' ')
+			}
 			b.WriteString(before + o + after)
 		}
 		repl = b.String()
 	}
-	return cmd[:start] + repl + cmd[start+n:]
+	return command{append(args, suffixArgs...), prefix + repl + suffix}, nil
 }
 
 // show3 formats n with dots between groups of three digits: "1.234.567".

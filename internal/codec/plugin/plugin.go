@@ -5,7 +5,7 @@
 //   - any other method: <UNARC_CLS_DIR>/CLS-<name>.dll from the setup (name matched ignoring case), run by
 //     clshost.exe under Wine; clshost.exe is UNARC_CLSHOST, else beside unarc, else in UNARC_CLS_DIR.
 //
-// A plugin stage spills its whole input into a temp folder under TMPDIR, runs the codec file to file and
+// A plugin stage spills its whole input into a temp folder under -w or TMPDIR, runs the codec file to file and
 // streams the result on. UNARC_CLS_KEEP keeps the spilled input for debugging. Plugin methods are looked up
 // after every built-in one.
 package plugin
@@ -91,26 +91,38 @@ func orDiscard(w io.Writer) io.Writer {
 
 // Decode spills src to <tmp>/packed, has the plugin write <tmp>/unpacked and streams that to dst.
 func (c *codec) Decode(dst io.Writer, src io.Reader) error {
-	dir, err := filestage.NewDir(os.TempDir(), "unarc-cls.")
+	parent, err := filepath.Abs(c.env.Temp())
+	if err != nil {
+		return err
+	}
+	dir, err := filestage.NewDir(parent, "unarc-cls.")
 	if err != nil {
 		return err
 	}
 	in, out := filepath.Join(dir.Path, "packed"), filepath.Join(dir.Path, "unpacked")
-	_, err = filestage.Spill(in, nil, src, ioChunk, false)
-	if err == nil {
-		err = c.run(in, out)
+	packedSpace, outputSpace := c.env.TempSpace(), c.env.TempSpace()
+	defer packedSpace.Release()
+	defer outputSpace.Release()
+	defer func() {
+		if dir != nil {
+			dir.Remove()
+		}
+	}()
+	_, err = filestage.Spill(in, nil, src, ioChunk, false, packedSpace)
+	if err != nil {
+		return err
 	}
+	err = c.run(in, out)
 	if c.env.CLSKeep {
 		fmt.Fprintf(c.stderr(), "[cls] kept %s\n", in)
 	}
 	if err == nil {
-		err = filestage.Stream(dst, out, ioChunk)
+		err = filestage.Stream(dst, out, ioChunk, outputSpace)
 	}
 	if c.env.CLSKeep {
 		_ = os.Remove(out)
 		dir.Keep()
-	} else {
-		dir.Remove()
+		dir = nil
 	}
 	return err
 }

@@ -44,7 +44,7 @@ func FuzzDecode(f *testing.F) {
 	f.Add(cat([]byte{3, 1, 2, 32}, le32(0), le32(16), le32(40), bytes.Repeat([]byte{0xa5}, 40)))
 	f.Fuzz(func(t *testing.T, data []byte) {
 		err := (codec{}).Decode(&limitWriter{left: 8 << 20}, bytes.NewReader(data))
-		if err != nil && !errors.Is(err, method.ErrBadData) && !errors.Is(err, method.ErrStop) {
+		if err != nil && !errors.Is(err, method.ErrBadData) && !errors.Is(err, method.ErrLimit) && !errors.Is(err, method.ErrStop) {
 			t.Fatalf("unexpected error: %v", err)
 		}
 	})

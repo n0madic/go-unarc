@@ -106,6 +106,7 @@ func process(cmd *Command, env *method.Env, ui *console) error {
 	} else {
 		p = extract.New(extract.Options{Cmd: cmd.Cmd, OutDir: cmd.OutDir, Filenames: cmd.Filenames,
 			Yes: cmd.Yes, No: cmd.No, UI: ui, Env: env})
+		defer p.Close()
 	}
 	for _, blk := range a.Blocks {
 		if blk.Type != arc.DirBlock {
@@ -121,7 +122,6 @@ func process(cmd *Command, env *method.Env, ui *console) error {
 		}
 		for b := range d.Blocks {
 			if err := p.ExtractBlock(a, d, b); err != nil {
-				p.Abort()
 				return err
 			}
 		}

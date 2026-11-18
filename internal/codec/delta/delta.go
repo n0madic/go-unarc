@@ -24,14 +24,15 @@ func init() { method.Register(Parse) }
 type codec struct {
 	blockSize      uint32 // encoder's block size; also what GetDecompressionMem reports
 	extendedTables bool   // "x": unused by both the C encoder and decoder
+	env            *method.Env
 }
 
 // Parse mirrors parse_DELTA: "delta" with the optional parameters "x" and a block size ("b<mem>" or just "<mem>").
-func Parse(params []string, _ *method.Env) (method.Codec, bool) {
+func Parse(params []string, env *method.Env) (method.Codec, bool) {
 	if params[0] != "delta" {
 		return nil, false
 	}
-	c := codec{blockSize: defaultBlockSize}
+	c := codec{blockSize: defaultBlockSize, env: env}
 	for _, param := range params[1:] {
 		if param == "x" {
 			c.extendedTables = true
@@ -50,7 +51,7 @@ func Parse(params []string, _ *method.Env) (method.Codec, bool) {
 func (c codec) DecompressionMem() uint64 { return uint64(c.blockSize) }
 
 // Decode undoes the table filter block by block.
-func (codec) Decode(dst io.Writer, src io.Reader) error {
+func (c codec) Decode(dst io.Writer, src io.Reader) error {
 	var d decoder
 	for {
 		dataSize, err := frame.ReadInt32(src)
@@ -66,6 +67,9 @@ func (codec) Decode(dst io.Writer, src io.Reader) error {
 		}
 		if dataSize < 0 || tableSize < 0 {
 			return badData("negative block size")
+		}
+		if err := c.env.CheckDecoderMemory(2*uint64(dataSize) + 3*uint64(tableSize)); err != nil {
+			return err
 		}
 		if err := d.readBlock(src, int(dataSize), int(tableSize)); err != nil {
 			return err

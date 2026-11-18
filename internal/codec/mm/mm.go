@@ -36,14 +36,15 @@ type codec struct {
 	wordSize   int32 // w, or "c*w": bits per sample
 	offset     int32 // o: size of the file header
 	reorder    int32 // r
+	env        *method.Env
 }
 
 // Parse mirrors parse_MM: the parameters s, f, d<n>, c<n>, w<n>, o<n>, r<n> and "<channels>*<bits>[f]".
-func Parse(params []string, _ *method.Env) (method.Codec, bool) {
+func Parse(params []string, env *method.Env) (method.Codec, bool) {
 	if params[0] != "mm" {
 		return nil, false
 	}
-	c := codec{mode: defaultMode}
+	c := codec{mode: defaultMode, env: env}
 	for _, param := range params[1:] {
 		if !c.set(param) {
 			return nil, false
@@ -147,7 +148,7 @@ func scanInt(s string) (rest string, n int32, ok bool) {
 func (codec) DecompressionMem() uint64 { return decompressionMem }
 
 // Decode reverses the difference filter.
-func (codec) Decode(dst io.Writer, src io.Reader) error {
+func (c codec) Decode(dst io.Writer, src io.Reader) error {
 	var hdr [3]byte
 	if _, err := io.ReadFull(src, hdr[:1]); err != nil {
 		return frame.Truncated(err)
@@ -169,6 +170,9 @@ func (codec) Decode(dst io.Writer, src io.Reader) error {
 	offset := int32(binary.LittleEndian.Uint32(b[:]))
 	if offset < 0 {
 		return badData("header of negative size")
+	}
+	if err := c.env.CheckDecoderMemory(uint64(offset)); err != nil {
+		return err
 	}
 	header, err := frame.ReadN(nil, src, int(offset))
 	if err != nil {

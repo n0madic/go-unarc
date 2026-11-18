@@ -10,6 +10,7 @@ import (
 	"path/filepath"
 
 	"github.com/n0madic/go-unarc/internal/cleanup"
+	"github.com/n0madic/go-unarc/internal/method"
 )
 
 // Dir is a temp folder, removed on interrupt too.
@@ -38,11 +39,15 @@ func (d *Dir) Keep() { d.forget() }
 
 // Spill writes prefix and then everything from src into a new file at path, reading chunk bytes at a time,
 // and returns how many bytes it wrote. With lazy set the file is created only once there is a byte to write.
-func Spill(path string, prefix []byte, src io.Reader, chunk int, lazy bool) (int64, error) {
+func Spill(path string, prefix []byte, src io.Reader, chunk int, lazy bool, space *method.TempSpace) (int64, error) {
 	var f *os.File
+	var dst io.Writer
 	open := func() error {
 		var err error
 		f, err = os.OpenFile(path, os.O_WRONLY|os.O_CREATE|os.O_TRUNC, 0o600)
+		if err == nil {
+			dst = space.Writer(f)
+		}
 		return err
 	}
 	if !lazy || len(prefix) > 0 {
@@ -57,7 +62,7 @@ func Spill(path string, prefix []byte, src io.Reader, chunk int, lazy bool) (int
 				return err
 			}
 		}
-		m, err := f.Write(p)
+		m, err := dst.Write(p)
 		n += int64(m)
 		return err
 	}
@@ -93,15 +98,26 @@ func Spill(path string, prefix []byte, src io.Reader, chunk int, lazy bool) (int
 
 // Stream writes the file at path to dst, chunk bytes at a time. A dst error (such as method.ErrStop) is
 // returned unchanged.
-func Stream(dst io.Writer, path string, chunk int) error {
+func Stream(dst io.Writer, path string, chunk int, space *method.TempSpace) error {
 	f, err := os.Open(path)
 	if err != nil {
 		return err
 	}
 	defer f.Close()
+	st, err := f.Stat()
+	if err != nil {
+		return err
+	}
+	if !st.Mode().IsRegular() {
+		return fmt.Errorf("temporary output is not a regular file: %s", path)
+	}
+	if err := space.Grow(uint64(st.Size())); err != nil {
+		return err
+	}
+	src := io.NewSectionReader(f, 0, st.Size())
 	buf := make([]byte, chunk)
 	for {
-		n, err := f.Read(buf)
+		n, err := src.Read(buf)
 		if n > 0 {
 			if _, werr := dst.Write(buf[:n]); werr != nil {
 				return werr

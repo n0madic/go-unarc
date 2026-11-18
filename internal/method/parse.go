@@ -56,6 +56,35 @@ func Name(method string) string {
 	return name
 }
 
+// PublicCompressor is the compressor string for diagnostics: an explicit cipher key is never printed.
+func PublicCompressor(compressor string) string {
+	if !strings.Contains(compressor, ":k") {
+		return compressor
+	}
+	stages := strings.Split(compressor, "+")
+	for i, stage := range stages {
+		params := strings.Split(stage, ":")
+		for j, param := range params {
+			// Encryption can also be the inner method of 4x4.
+			if j != 0 && params[0] != "4x4" {
+				break
+			}
+			name, _, _ := strings.Cut(param, "/")
+			name, _, _ = strings.Cut(name, "-")
+			switch name {
+			case "aes", "blowfish", "serpent", "twofish":
+				for k := j + 1; k < len(params); k++ {
+					if strings.HasPrefix(params[k], "k") {
+						params[k] = "k[redacted]"
+					}
+				}
+				stages[i] = strings.Join(params, ":")
+			}
+		}
+	}
+	return strings.Join(stages, "+")
+}
+
 // ParseInt mirrors C parseInt(): optional leading '=', decimal digits only, uint32 wrap-around.
 func ParseInt(s string) (uint32, bool) {
 	s = strings.TrimPrefix(s, "=")

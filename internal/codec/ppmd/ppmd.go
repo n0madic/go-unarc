@@ -30,17 +30,19 @@ type codec struct {
 	order int
 	mem   uint32
 	mr    uint32
+	env   *method.Env
 }
 
 // Parse mirrors parse_PPMD: "ppmd[:order][:mem][:r[N]]" where each parameter is either named
 // (oN, mN or memN, rN) or recognised by its form (a bare number is the order, anything else a size).
 // Parameters the C decoder would crash on (order outside 2..128, a model too small for its root
 // context) are rejected.
-func Parse(params []string, _ *method.Env) (method.Codec, bool) {
+func Parse(params []string, env *method.Env) (method.Codec, bool) {
 	c, ok := parseParams(params)
 	if !ok || c.order < minOrder || c.order > maxOrder || c.mem < minMem || c.mem > maxMem {
 		return nil, false
 	}
+	c.env = env
 	return c, true
 }
 
@@ -109,6 +111,9 @@ type streamDecoder struct {
 }
 
 func (s *streamDecoder) Decode(dst io.Writer, src io.Reader) (err error) {
+	if err := s.c.env.CheckDecoderMemory(uint64(s.c.mem)); err != nil {
+		return err
+	}
 	defer func() {
 		// The model never indexes outside its heap whatever the input is; this is a safety net so
 		// that a defect cannot take the process down.

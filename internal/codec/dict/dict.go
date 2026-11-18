@@ -39,10 +39,11 @@ type codec struct {
 	minMediumCnt   int32  // m
 	minSmallCnt    int32  // s
 	minRatio       int32  // r
+	env            *method.Env
 }
 
 // Parse mirrors parse_DICT.
-func Parse(params []string, _ *method.Env) (method.Codec, bool) {
+func Parse(params []string, env *method.Env) (method.Codec, bool) {
 	if params[0] != "dict" {
 		return nil, false
 	}
@@ -54,6 +55,7 @@ func Parse(params []string, _ *method.Env) (method.Codec, bool) {
 		minMediumCnt:   defaultMinMediumCnt,
 		minSmallCnt:    defaultMinSmallCnt,
 		minRatio:       defaultMinRatio,
+		env:            env,
 	}
 	for _, param := range params[1:] {
 		if !c.set(param) {
@@ -131,7 +133,7 @@ func (c codec) Dictionary() uint64 { return uint64(c.blockSize) }
 
 // Decode decodes the blocks one after another.
 func (c codec) Decode(dst io.Writer, src io.Reader) error {
-	d := &decoder{limit: int(min(uint64(c.blockSize), math.MaxInt))}
+	d := &decoder{limit: int(min(uint64(c.blockSize), c.env.DecoderLimit(), math.MaxInt))}
 	for {
 		size, err := frame.ReadInt32(src)
 		if err == io.EOF {
@@ -146,11 +148,17 @@ func (c codec) Decode(dst io.Writer, src io.Reader) error {
 			if size == math.MinInt32 {
 				return badData("stored block of 2 GB")
 			}
+			if err := c.env.CheckDecoderMemory(uint64(-size)); err != nil {
+				return err
+			}
 			if d.in, err = frame.ReadN(d.in, src, int(-size)); err != nil {
 				return err
 			}
 			out = d.in
 		} else {
+			if err := c.env.CheckDecoderMemory(uint64(size)); err != nil {
+				return err
+			}
 			if d.in, err = frame.ReadN(d.in, src, int(size)); err != nil {
 				return err
 			}

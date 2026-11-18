@@ -93,7 +93,7 @@ func (a *Archive) readAt(pos, size uint64) ([]byte, error) {
 	if pos > math.MaxInt64 {
 		return nil, errSeek
 	}
-	if size > a.Size || pos > a.Size-size {
+	if size > math.MaxInt || size > a.Size || pos > a.Size-size {
 		return nil, Errorf("ERROR: can't read %d bytes", size)
 	}
 	buf := make([]byte, size)
@@ -165,13 +165,19 @@ func (a *Archive) readLocalDescriptor(pos uint64) (Block, error) {
 
 // ReadControlBlock reads, decompresses and CRC-checks a control block.
 func (a *Archive) ReadControlBlock(b Block) ([]byte, error) {
+	if limit := a.env.ControlLimit(); b.CompSize > limit || b.OrigSize > limit {
+		return nil, Errorf("ERROR: %v: control block exceeds %d bytes", method.ErrLimit, limit)
+	}
 	packed, err := a.readAt(b.Pos, b.CompSize)
 	if err != nil {
 		return nil, err
 	}
 	data, err := method.DecompressMem(b.Compressor, packed, b.OrigSize, a.env)
 	if errors.Is(err, method.ErrUnsupportedMethod) {
-		return nil, Errorf("ERROR: unsupported compression method \"%s\"", b.Compressor)
+		return nil, Errorf("ERROR: unsupported compression method \"%s\"", method.PublicCompressor(b.Compressor))
+	}
+	if errors.Is(err, method.ErrLimit) {
+		return nil, Errorf("ERROR: %v", err)
 	}
 	if err != nil || uint64(len(data)) != b.OrigSize {
 		return nil, Errorf("ERROR: archive structure corrupted (decompression of control block failed)")
@@ -260,11 +266,13 @@ func (a *Archive) parseFooter(data []byte) error {
 	return nil
 }
 
-// SectionReader returns a reader over the packed data of a data block, as the C read callback serves it:
-// it stops at the end of the block or of the file.
+// SectionReader returns a reader over the packed data of a block contained in the archive.
 func (a *Archive) SectionReader(pos, size uint64) (io.Reader, error) {
 	if pos > math.MaxInt64 {
 		return nil, errSeek
 	}
-	return io.NewSectionReader(a.File, int64(pos), int64(min(size, math.MaxInt64-pos))), nil
+	if pos > a.Size || size > a.Size-pos {
+		return nil, Errorf("ERROR: archive structure corrupted (data block extends past the archive)")
+	}
+	return io.NewSectionReader(a.File, int64(pos), int64(size)), nil
 }

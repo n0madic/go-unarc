@@ -34,7 +34,8 @@ arguments for the list of commands and options.
 
 - `-p{pwd}` or `UNARC_PASSWORD`: the password of an encrypted archive.
 - `-cls{dir}` or `UNARC_CLS_DIR`: the folder with a setup's `CLS-*.dll` codecs. Each such stage (but `msc`, see
-  below) runs through `clshost.exe` under Wine (`UNARC_WINE`, `UNARC_CLSHOST`). `clshost.exe` is a small Windows
+  below) runs through `clshost.exe` under Wine (`UNARC_WINE`, `UNARC_CLSHOST`). Use only trusted DLLs;
+  Wine is not a sandbox. `clshost.exe` is a small Windows
   program that loads one CLS DLL and runs it from file to file; its source is `tools/clshost/clshost.c`, and
   `tools/clshost/build.sh` builds it into `.build/clshost.exe` (needs mingw-w64). It is looked up as
   `UNARC_CLSHOST`, else beside `go-unarc`, else in the CLS folder.
@@ -45,6 +46,27 @@ arguments for the list of commands and options.
   also saves its input there if it is not seekable. The built-in decoder accepts blocks up to 8 MiB and
   up to 1,048,576 pending matches; use `UNARC_SREP` if you need a different decoder for an archive.
 - Plugin stages spill to temp files under `TMPDIR` (or `-w`): allow disk space for the whole solid block.
+
+### Resource limits
+
+The defaults can be raised for trusted archives. Values are positive decimal integers; unset, zero, and
+invalid values use the defaults. `MB` here means MiB (1,048,576 bytes).
+
+| Variable | Default | Applies to |
+| --- | ---: | --- |
+| `UNARC_MAX_CONTROL_MB` | 64 | Packed and unpacked size of each footer or directory block |
+| `UNARC_MAX_DECODER_MB` | 1024 | Large buffers and models in native decoders; not a process RSS limit |
+| `UNARC_MAX_TEMP_MB` | 65536 | Live decoder scratch files, including the logical size of SREP history; not extracted files |
+| `UNARC_MAX_KDF_ITERATIONS` | 1000000 | PBKDF2 iterations per password-derived key |
+
+The temporary storage limit is checked before Go writes scratch files. External helpers' outputs are checked
+after they exit; use a quota-limited work directory or OS isolation to enforce a disk limit on the helpers
+themselves. `UNARC_CLS_KEEP` leaves debug files behind, so those files also need separate disk management.
+
+For `arc.ini` external decompressors, a `{options}` or `{…option…}` placeholder must be a separate field
+after the executable. Archive options used by that field must be listed in `allowedopts` in the same section
+(for example, `allowedopts = m48, r1`). `default` still supplies local options when the archive supplies none.
+Only enable external programs and options you trust.
 
 Methods: `storing tempfile lzma exe delta rep lzp dict ppmd tor grzip mm tta 4x4 dispack070 msc`, `aes blowfish
 twofish serpent` (any key size, `/ctr` or `/cfb`), `arc.ini` external compressors and `pmm`, `srep`
@@ -62,9 +84,13 @@ Fixed defects:
 
 - The overwrite question accepts `y/n/a/s/q` (the C one rejected every answer); end of input means `n`.
 - `--` ends the options; `--noarcext` turns off adding `.arc` to a missing archive name.
-- Only the files actually written get their modification time set.
+- Files are staged alongside their destination and published only after their size, CRC and close succeed.
+  A failed overwrite leaves the original intact. Only files written here get their modification time set.
+  Publishing without permission to overwrite uses a hard link so a concurrently created file is never
+  replaced. On filesystems without hard links, extract to an empty directory with `-o+` if needed.
 - A name with a `..` component or an absolute path (`/x`, `\x`, `C:`) stops extraction with
-  `ERROR: unsafe path in archive: <name>`, exit code 2; nothing is written outside the output folder.
+  `ERROR: unsafe path in archive: <name>`, exit code 2. Output operations are rooted in the destination;
+  a symlink in the output tree cannot redirect them outside that tree. A directory creation failure is an error.
 - Encryption: `k/i/s/c` lengths are checked before decoding (the C one overflowed its stack), the check
   code is compared on exactly 2 bytes; bad parameters are reported as corrupt data. A key size or number of
   rounds the cipher rejects passes the data through in CTR mode, as in C (FreeArc 0.67 stored such data
@@ -72,17 +98,20 @@ Fixed defects:
 - PPMd keeps the 32-bit memory layout, so blocks that filled the model's memory decode.
 - `4x4` (FreeArc 0.67's multi-threaded method, its default `-m1`..`-m5` on more than one CPU) is decoded,
   its blocks in parallel on one goroutine per CPU, fewer when their memory would exceed the limit that
-  also decides where `tempfile` goes (3/4 of RAM), as FreeArc does; the C unarc does not have the method.
+  also decides where `tempfile` goes (3/4 of RAM, capped at about 3 GiB), as FreeArc does; the C unarc does not
+  have the method. The resource limits above are separate from this scheduling estimate.
 - `dispack070` (FreeArc 0.67's x86 code filter, `exe2`, which repacks put before `delta+lzma`) is decoded;
   the C unarc does not have it either. Where the C code trusts the stream (stored record lengths, sizes of
   the filtered streams, code shorter than its record says) the Go one reports corrupt data.
-- Every decoder checks its bounds: damaged data is an error, not a crash or a hang.
+- An unfiltered `t` lets each decoder finish and checks for surplus decoded bytes. A test with selected
+  filenames, or extraction, can still stop early when it has the requested files.
 - External compressors run without a shell (`$$arcdatafile$$` is passed literally), from the folder of
   the executable or `PATH`; `Errorlevel=` prints the program's exit code.
 
 Also: the first line of the output is `UnArc unpacker`, without the C one's version and link; with
 `UNARC_DEBUG`, a chain that fails on corrupt data prints why on stderr, naming the method
-(`Decompress error: lzma: compressed data corrupted: ...`); LZMA refuses `lc>8`, `lp>4`, `pb>4` and an
+(`Decompress error: lzma: compressed data corrupted: ...`), without dumping keys or decrypted bytes;
+LZMA refuses `lc>8`, `lp>4`, `pb>4` and an
 empty dictionary; a CLS DLL path is passed to Wine as an absolute path. Not supported, as in the C unarc:
 `lzma2`, `precomp`, SFX archives.
 
@@ -116,6 +145,7 @@ go test -run XXX -fuzz FuzzOpen ./internal/arc   # every decoder has a FuzzDecod
 ### Against the C unarc
 
 The scripts below compare with, or regenerate data from, the C unarc, which is not part of this repository.
+`diffcheck.sh` requires `timeout` or `gtimeout` (GNU coreutils); a timed-out or failed launch is not a match.
 Two variables say where it is; nothing is looked up by relative path:
 
 - `C_UNARC`: the C unarc binary (the oracle of `diffcheck.sh`, `benchcodec -archives`, `mkfixtures` and the

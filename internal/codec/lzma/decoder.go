@@ -3,6 +3,7 @@ package lzma
 import (
 	"errors"
 	"fmt"
+	"math"
 
 	"github.com/n0madic/go-unarc/internal/method"
 )
@@ -119,16 +120,23 @@ var errParams = errors.New("unsupported lc/lp/pb")
 // reset prepares d for a new stream. It keeps the storage of the dictionary and the probabilities: their old
 // contents are never read, the probabilities are initialised before use and a match may only reach back
 // into the bytes of the current stream (as LzmaDec_Init with the dictionary C keeps in a 4x4 CodecState).
-func (d *decoder) reset(lc, lp, pb, dictSize uint32) error {
+func (d *decoder) reset(lc, lp, pb, dictSize uint32, env *method.Env) error {
 	if lc > 8 || lp > 4 || pb > 4 {
 		return fmt.Errorf("%w: %w (lc=%d lp=%d pb=%d)", method.ErrBadData, errParams, lc, lp, pb)
 	}
 	if dictSize == 0 {
 		return errData
 	}
+	if uint64(dictSize) > math.MaxInt {
+		return fmt.Errorf("%w: LZMA dictionary doesn't fit in an int", method.ErrLimit)
+	}
+	n := literal + litSize<<(lc+lp)
+	if err := env.CheckDecoderMemory(uint64(dictSize) + uint64(2*n) + largeBufferSize); err != nil {
+		return err
+	}
 	probs, dic := d.probs, d.dic
 	*d = decoder{lc: lc, lp: lp, pb: pb, dictSize: dictSize, dicBufSize: int(dictSize)}
-	if n := literal + litSize<<(lc+lp); cap(probs) >= n {
+	if cap(probs) >= n {
 		d.probs = probs[:n]
 	} else {
 		d.probs = make([]uint16, n)

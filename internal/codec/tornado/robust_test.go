@@ -43,7 +43,7 @@ func readStreams(t testing.TB, maxSize int) map[string][]byte {
 }
 
 // TestCorrupt feeds damaged streams to the decoder. Whatever they hold, it must neither panic nor hang
-// nor fail with anything but ErrBadData (or ErrStop, when the output limit is reached).
+// and must return a data error, a resource-limit error or an early stop.
 func TestCorrupt(t *testing.T) {
 	t.Parallel()
 	for name, packed := range readStreams(t, 100000) {
@@ -55,7 +55,7 @@ func TestCorrupt(t *testing.T) {
 				go func() { done <- decodeLimited("tor", stream, 4<<20) }()
 				select {
 				case err := <-done:
-					if err != nil && !errors.Is(err, method.ErrBadData) && !errors.Is(err, method.ErrStop) {
+					if err != nil && !errors.Is(err, method.ErrBadData) && !errors.Is(err, method.ErrLimit) && !errors.Is(err, method.ErrStop) {
 						t.Errorf("%s: unexpected error %v", what, err)
 					}
 				case <-time.After(30 * time.Second):
@@ -105,8 +105,12 @@ func TestBadHeader(t *testing.T) {
 	}
 	for _, tt := range tests {
 		err := decodeLimited("tor", tt.in, 1<<20)
-		if !errors.Is(err, method.ErrBadData) {
-			t.Errorf("%s: err = %v, want ErrBadData", tt.name, err)
+		want := method.ErrBadData
+		if tt.name == "4 GiB buffer" {
+			want = method.ErrLimit
+		}
+		if !errors.Is(err, want) {
+			t.Errorf("%s: err = %v, want %v", tt.name, err, want)
 		}
 	}
 }
@@ -188,7 +192,7 @@ func FuzzDecode(f *testing.F) {
 	}
 	f.Fuzz(func(t *testing.T, data []byte) {
 		err := decodeLimited("tor", data, 4<<20)
-		if err != nil && !errors.Is(err, method.ErrBadData) && !errors.Is(err, method.ErrStop) {
+		if err != nil && !errors.Is(err, method.ErrBadData) && !errors.Is(err, method.ErrLimit) && !errors.Is(err, method.ErrStop) {
 			t.Fatalf("unexpected error: %v", err)
 		}
 	})

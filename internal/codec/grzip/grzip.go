@@ -19,6 +19,7 @@ func init() { method.Register(Parse) }
 type codec struct {
 	blockSize uint32
 	threads   int // decoding workers; C unarc uses the processor count
+	env       *method.Env
 }
 
 // Parse mirrors parse_GRZIP: "grzip" followed by the parameters
@@ -27,7 +28,7 @@ type codec struct {
 //	mN bSIZE lN hN   method 1..4 (not range checked), block size, LZP match length, LZP hash size log
 //	N                a bare number is the LZP match length
 //	SIZE             a bare size ("8mb", "64kb", "24" = 2^24) is the block size
-func Parse(params []string, _ *method.Env) (method.Codec, bool) {
+func Parse(params []string, env *method.Env) (method.Codec, bool) {
 	if params[0] != "grzip" {
 		return nil, false
 	}
@@ -62,7 +63,7 @@ func Parse(params []string, _ *method.Env) (method.Codec, bool) {
 		}
 		blockSize = n
 	}
-	return &codec{blockSize: blockSize, threads: runtime.NumCPU()}, true
+	return &codec{blockSize: blockSize, threads: runtime.NumCPU(), env: env}, true
 }
 
 func isSwitch(c byte) bool {
@@ -84,11 +85,17 @@ func (c *codec) Dictionary() uint64 { return uint64(c.blockSize) }
 // Decode decodes blocks until the end of src: this goroutine reads them, a pool of workers decodes them and
 // the results are written in stream order. The first error in stream order ends the output.
 func (c *codec) Decode(dst io.Writer, src io.Reader) error {
-	return parallel.Decode(dst, c.threads, readBlock(src), (*decoder).run)
+	// One worker can retain an LZP table, sort tables and frames, including container scratch.
+	const workerBytes = 192 * method.MB
+	workers := int(min(uint64(max(c.threads, 1)), max(1, c.env.DecoderLimit()/workerBytes)))
+	return parallel.Decode(dst, workers, readBlock(src, c.env), func(d *decoder, j *parallel.Job[header]) {
+		d.env = c.env
+		d.run(j)
+	})
 }
 
 // readBlock returns the reader of the next block: j.In receives the header followed by the payload.
-func readBlock(src io.Reader) parallel.Read[header] {
+func readBlock(src io.Reader, env *method.Env) parallel.Read[header] {
 	return func(j *parallel.Job[header]) (bool, error) {
 		var raw [headerSize]byte
 		switch _, err := io.ReadFull(src, raw[:]); err {
@@ -102,6 +109,9 @@ func readBlock(src io.Reader) parallel.Read[header] {
 		}
 		h, err := parseHeader(raw[:])
 		if err != nil {
+			return false, err
+		}
+		if err := env.CheckDecoderMemory(uint64(headerSize + h.payload + h.outLen())); err != nil {
 			return false, err
 		}
 		j.In = resize(j.In, headerSize+h.payload)
